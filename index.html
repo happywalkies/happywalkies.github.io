@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>HW Walk Report</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HW Walk">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --brand:#2e7d5b; --bg:#f6f7f4; --card:#fff; --text:#1d2420; --muted:#6b736e; --err:#c0392b; --line:#dfe3dc; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--brand); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:18px; margin:0; }
+  header button { background:none; border:1px solid rgba(255,255,255,.6); color:#fff; padding:4px 10px; border-radius:6px; font-size:13px; }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-weight:600; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  .hint { font-weight:400; color:var(--muted); font-size:13px; }
+  input, select, textarea { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input.auto { background:#eef7f1; border-color:#9fd0b4; }
+  textarea { min-height:90px; resize:vertical; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  .btn { width:100%; padding:14px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--brand); color:#fff; margin-top:18px; }
+  .btn:disabled { opacity:.55; }
+  .thumbs { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .thumbs div { position:relative; }
+  .thumbs img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--line); display:block; }
+  .thumbs .up img { opacity:.45; }
+  .thumbs .up::after { content:"Đang tải"; position:absolute; left:0; right:0; bottom:4px; text-align:center; font-size:11px; font-weight:700; }
+  .thumbs .bad img { opacity:.35; outline:2px solid var(--err); }
+  .thumbs .bad::after { content:"Lỗi"; position:absolute; left:0; right:0; bottom:4px; text-align:center; font-size:11px; font-weight:700; color:var(--err); }
+  .thumbs button { position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; border:0; background:#000a; color:#fff; font-size:13px; line-height:22px; padding:0; }
+  .status { font-size:13px; margin-top:6px; color:var(--muted); }
+  .status.ok { color:var(--brand); }
+  .status.err { color:var(--err); }
+  .msg { padding:10px 12px; border-radius:8px; margin-top:12px; display:none; }
+  .msg.err { display:block; background:#fdecea; color:var(--err); }
+  .msg.ok { display:block; background:#e7f4ec; color:var(--brand); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:6px 4px; border-bottom:1px solid var(--line); }
+  .types { display:flex; gap:10px; }
+  .types label { flex:1; margin:0; }
+  .types input { position:absolute; opacity:0; width:1px; height:1px; }
+  .types span { display:block; text-align:center; padding:12px; border:2px solid var(--line); border-radius:10px; font-weight:700; background:#fff; }
+  .types input:checked + span { border-color:var(--brand); background:#e7f4ec; color:var(--brand); }
+  .types input:focus-visible + span { outline:2px solid var(--brand); outline-offset:2px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐾 HW Walk Report</h1>
+  <button id="logoutBtn" class="hidden" onclick="logout()">Đổi người</button>
+</header>
+<main>
+  <!-- PIN -->
+  <section id="pinView" class="card hidden">
+    <label for="pin">Nhập mã PIN của bạn</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="pinBtn" onclick="doLogin()">Vào</button>
+    <div id="pinMsg" class="msg"></div>
+  </section>
+
+  <!-- Form -->
+  <section id="formView" class="hidden">
+    <div class="card">
+      <div class="hint">Xin chào <b id="staffName"></b></div>
+
+      <label>Ảnh chụp màn hình Strava <span class="hint">(km, thời gian, giờ đi sẽ tự điền)</span></label>
+      <input id="stravaInput" type="file" accept="image/*">
+      <div id="stravaThumbs" class="thumbs"></div>
+      <div id="stravaStatus" class="status"></div>
+      <div id="stravaRaw" class="status hidden" style="white-space:pre-wrap;word-break:break-word"></div>
+
+      <label for="dog">Chó / Khách</label>
+      <select id="dog"></select>
+
+      <label>Gói walk</label>
+      <div id="walkTypes" class="types"></div>
+
+      <label for="walkDate">Thời gian bắt đầu walk</label>
+      <input id="walkDate" type="datetime-local">
+
+      <div class="row">
+        <div><label for="km">Km</label>
+          <input id="km" type="number" inputmode="decimal" step="0.01" min="0"></div>
+        <div><label for="minutes">Phút thực tế</label>
+          <input id="minutes" type="number" inputmode="numeric" step="1" min="0"></div>
+      </div>
+
+      <label>Ảnh chó <span class="hint">(1–5 ảnh)</span></label>
+      <input id="dogInput" type="file" accept="image/*" multiple>
+      <div id="dogThumbs" class="thumbs"></div>
+
+      <label for="note">Ghi chú</label>
+      <textarea id="note" maxlength="1000" placeholder="Đi vệ sinh, ăn uống, hành vi, điều cần lưu ý..."></textarea>
+
+      <button class="btn" id="submitBtn" onclick="submitWalk()">Gửi report</button>
+      <div id="formMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <b>Walk gần đây của bạn</b>
+      <table id="recent"><tr><td class="hint">Đang tải...</td></tr></table>
+    </div>
+  </section>
+</main>
+
+<script>
+  var MAX_DOG = 5;
+  // Ảnh chó nhỏ cho nhanh; ảnh Strava giữ nét để đọc chữ
+  var SIZE = { dog: { side: 1280, q: 0.72 }, strava: { side: 1800, q: 0.85 } };
+  // Mỗi ảnh: { src, fileId, status: 'up'|'done'|'bad', promise }
+  var state = { pin: null, strava: null, dogs: [], token: null };
+
+  function $(id) { return document.getElementById(id); }
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+  function msg(id, text, kind) { var el = $(id); el.textContent = text || ''; el.className = 'msg' + (text ? ' ' + kind : ''); }
+  function status(text, kind) {
+    var el = $('stravaStatus'); el.textContent = text || ''; el.className = 'status' + (kind ? ' ' + kind : '');
+    if (!text) $('stravaRaw').classList.add('hidden');
+  }
+  // Gọi API của Google Apps Script (doPost). text/plain để trình duyệt không cần preflight CORS.
+  var API = 'https://script.google.com/macros/s/AKfycbxLQ_VTlsAbc3rsxsHRvL3SA1-NhaiWJRDyd2CKDNWRLjA8aO1aCgl8NzIYpO8YAiwxKA/exec';
+  function call(fn) {
+    var args = [].slice.call(arguments, 1);
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, args: args })
+    }).then(function (r) { return r.json(); }, function () {
+      throw new Error('Mất kết nối mạng, vui lòng thử lại.');
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    });
+  }
+  function errText(e) { return (e && e.message ? e.message : String(e)).replace(/^Exception:\s*/, ''); }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  // ---- Đăng nhập ----
+  function doLogin(savedPin) {
+    var pin = savedPin || $('pin').value.trim();
+    if (!pin) return;
+    $('pinBtn').disabled = true;
+    msg('pinMsg', '');
+    call('login', pin).then(function (res) {
+      state.pin = pin;
+      store('hw_pin', pin);
+      $('staffName').textContent = res.name;
+      fillDogs(res.dogs);
+      fillWalkTypes(res.walkTypes);
+      resetForm();
+      show('pinView', false); show('formView', true); show('logoutBtn', true);
+      loadRecent();
+    }).catch(function (e) {
+      store('hw_pin', null);
+      show('pinView', true); show('formView', false);
+      msg('pinMsg', errText(e), 'err');
+    }).then(function () { $('pinBtn').disabled = false; });
+  }
+  function logout() {
+    store('hw_pin', null); state.pin = null; state.token = null; $('pin').value = '';
+    show('formView', false); show('logoutBtn', false); show('pinView', true);
+  }
+  function fillDogs(dogs) {
+    var sel = $('dog');
+    sel.innerHTML = '';
+    var first = document.createElement('option');
+    first.value = '';
+    first.textContent = dogs.length ? '— Chọn chó —' : 'Chưa có danh sách chó, liên hệ chủ';
+    sel.appendChild(first);
+    dogs.forEach(function (d) { var o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
+  }
+  function fillWalkTypes(types) {
+    var box = $('walkTypes'); box.innerHTML = '';
+    types.forEach(function (t) {
+      var l = document.createElement('label');
+      var i = document.createElement('input'); i.type = 'radio'; i.name = 'walkType'; i.value = t;
+      var s = document.createElement('span'); s.textContent = t + "'";
+      l.appendChild(i); l.appendChild(s); box.appendChild(l);
+    });
+  }
+  function selectedWalkType() {
+    var el = document.querySelector('input[name="walkType"]:checked');
+    return el ? Number(el.value) : 0;
+  }
+
+  // ---- Ảnh: nén rồi tải lên ngay khi chọn ----
+  function compress(file, size) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, size.side / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', size.q));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh ' + file.name)); };
+      img.src = url;
+    });
+  }
+  function ensureToken() {
+    if (!state.token) {
+      state.token = call('startWalk', state.pin).catch(function (e) { state.token = null; throw e; });
+    }
+    return state.token;
+  }
+  function upload(kind, src) {
+    var item = { src: src, fileId: null, status: 'up' };
+    item.promise = ensureToken().then(function (token) {
+      item.token = token;
+      return call('uploadPhoto', state.pin, token, kind, src);
+    }).then(function (res) {
+      item.fileId = res.fileId; item.status = 'done'; renderThumbs();
+      if (item.removed) call('deletePhoto', state.pin, item.token, item.fileId);
+      return res;
+    }, function (e) {
+      item.status = 'bad'; renderThumbs();
+      if (/hết hạn/.test(errText(e))) state.token = null;
+      throw e;
+    });
+    item.promise.catch(function () {}); // lỗi được báo trên ảnh và lúc Gửi
+    return item;
+  }
+  function removeItem(item) {
+    item.removed = true;
+    if (item.fileId) call('deletePhoto', state.pin, item.token, item.fileId);
+  }
+
+  // Tạo sẵn thư mục tạm ngay khi bấm chọn ảnh, trong lúc nhân viên còn đang chọn
+  ['stravaInput', 'dogInput'].forEach(function (id) {
+    $(id).addEventListener('click', function () { if (state.pin) ensureToken().catch(function () {}); });
+  });
+
+  $('stravaInput').addEventListener('change', function () {
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    compress(f, SIZE.strava).then(function (src) {
+      if (state.strava) removeItem(state.strava);
+      var item = state.strava = upload('strava', src);
+      renderThumbs();
+      status('Đang đọc ảnh Strava...');
+      item.promise.then(function (res) {
+        if (state.strava === item) applyParsed(res.parsed, res);
+      }, function (e) {
+        if (state.strava === item) status('Tải ảnh lỗi: ' + errText(e) + '. Bấm × rồi chọn lại.', 'err');
+      });
+    }).catch(function (e) { msg('formMsg', errText(e), 'err'); });
+  });
+  $('dogInput').addEventListener('change', function () {
+    var files = [].slice.call(this.files, 0, MAX_DOG - state.dogs.length); this.value = '';
+    files.forEach(function (f) {
+      compress(f, SIZE.dog).then(function (src) {
+        state.dogs.push(upload('dog', src)); renderThumbs();
+      }).catch(function (e) { msg('formMsg', errText(e), 'err'); });
+    });
+  });
+
+  function applyParsed(p, res) {
+    p = p || {};
+    var filled = [];
+    if (p.km) { $('km').value = p.km; $('km').classList.add('auto'); filled.push(p.km + ' km'); }
+    if (p.minutes) { $('minutes').value = p.minutes; $('minutes').classList.add('auto'); filled.push(p.minutes + ' phút'); }
+    if (p.start) { $('walkDate').value = p.start; $('walkDate').classList.add('auto'); filled.push('bắt đầu ' + p.start.slice(11)); }
+    if (filled.length === 3) status('✓ Đã tự điền: ' + filled.join(', ') + '. Kiểm tra lại giúp nhé.', 'ok');
+    else if (filled.length) status('Đã điền được: ' + filled.join(', ') + '. Phần còn lại nhập tay.', 'ok');
+    else status('Không đọc được số trong ảnh, vui lòng nhập tay km và phút.', 'err');
+    var raw = $('stravaRaw');
+    if (filled.length < 3 && res) {
+      raw.textContent = res.error ? 'Lỗi đọc ảnh: ' + res.error
+        : 'Chữ đọc được: ' + (res.raw ? res.raw.replace(/\s+/g, ' ') : '(không đọc ra chữ nào)');
+      raw.classList.remove('hidden');
+    } else {
+      raw.classList.add('hidden');
+    }
+  }
+  ['km', 'minutes', 'walkDate'].forEach(function (id) {
+    $(id).addEventListener('input', function () { this.classList.remove('auto'); });
+  });
+
+  function renderThumbs() {
+    thumbs('stravaThumbs', state.strava ? [state.strava] : [], function () {
+      removeItem(state.strava); state.strava = null; status('');
+    });
+    thumbs('dogThumbs', state.dogs, function (i) { removeItem(state.dogs[i]); state.dogs.splice(i, 1); });
+    $('dogInput').disabled = state.dogs.length >= MAX_DOG;
+  }
+  function thumbs(id, list, onRemove) {
+    var box = $(id); box.innerHTML = '';
+    list.forEach(function (item, i) {
+      var w = document.createElement('div');
+      if (item.status !== 'done') w.className = item.status;
+      var img = document.createElement('img'); img.src = item.src;
+      var x = document.createElement('button'); x.textContent = '×';
+      x.onclick = function () { onRemove(i); renderThumbs(); };
+      w.appendChild(img); w.appendChild(x); box.appendChild(w);
+    });
+  }
+
+  // ---- Gửi ----
+  function nowLocal() {
+    var d = new Date(); d.setSeconds(0, 0);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+  function resetForm() {
+    $('dog').value = ''; $('walkDate').value = nowLocal();
+    [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = false; });
+    $('km').value = ''; $('minutes').value = ''; $('note').value = '';
+    ['km', 'minutes', 'walkDate'].forEach(function (id) { $(id).classList.remove('auto'); });
+    state.strava = null; state.dogs = []; state.token = null; status(''); renderThumbs();
+  }
+  function submitWalk() {
+    var data = {
+      dog: $('dog').value, walkType: selectedWalkType(), walkDate: $('walkDate').value,
+      km: parseFloat(String($('km').value).replace(',', '.')), minutes: parseInt($('minutes').value, 10),
+      note: $('note').value.trim()
+    };
+    var items = (state.strava ? [state.strava] : []).concat(state.dogs);
+    var err = !state.strava ? 'Chưa có ảnh Strava.' : !data.dog ? 'Chưa chọn chó.' :
+      !data.walkType ? "Chưa chọn gói walk 30' hay 45'." : !data.walkDate ? 'Chưa nhập thời gian walk.' :
+      !(data.km > 0) ? 'Chưa có km.' : !(data.minutes > 0) ? 'Chưa có số phút.' :
+      !state.dogs.length ? 'Cần ít nhất 1 ảnh chó.' :
+      items.some(function (it) { return it.status === 'bad'; }) ? 'Có ảnh tải lỗi (viền đỏ). Bấm × rồi chọn lại ảnh đó.' : '';
+    if (err) return msg('formMsg', err, 'err');
+
+    var btn = $('submitBtn');
+    btn.disabled = true; msg('formMsg', '');
+    btn.textContent = items.some(function (it) { return it.status === 'up'; }) ? 'Đang chờ ảnh tải xong...' : 'Đang lưu...';
+
+    Promise.all(items.map(function (it) { return it.promise; })).then(function () {
+      btn.textContent = 'Đang lưu...';
+      data.stravaFileId = state.strava.fileId;
+      data.dogFileIds = state.dogs.map(function (it) { return it.fileId; });
+      return state.token.then(function (token) { return call('submitWalk', state.pin, token, data); });
+    }).then(function () {
+      resetForm();
+      msg('formMsg', 'Đã gửi report ✓ Cảm ơn bạn!', 'ok');
+      window.scrollTo(0, 0);
+      loadRecent();
+    }).catch(function (e) {
+      msg('formMsg', 'Gửi không thành công: ' + errText(e) + ' – vui lòng thử lại.', 'err');
+    }).then(function () { btn.disabled = false; btn.textContent = 'Gửi report'; });
+  }
+
+  function loadRecent() {
+    call('getMyRecent', state.pin).then(function (rows) {
+      var t = $('recent'); t.innerHTML = '';
+      if (!rows.length) { t.innerHTML = '<tr><td class="hint">Chưa có walk nào.</td></tr>'; return; }
+      rows.forEach(function (r) {
+        var tr = document.createElement('tr');
+        [r.date, r.dog, r.walkType ? 'Gói ' + r.walkType + "'" : '', r.km + ' km', r.minutes + "'", r.approved ? '✓ Duyệt' : 'Chờ'].forEach(function (v) {
+          var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+        });
+        t.appendChild(tr);
+      });
+    }).catch(function () { $('recent').innerHTML = '<tr><td class="hint">Không tải được.</td></tr>'; });
+  }
+
+  $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  var saved = load('hw_pin');
+  if (saved) doLogin(saved); else show('pinView', true);
+</script>
+</body>
+</html>
