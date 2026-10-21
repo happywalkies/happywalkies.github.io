@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Happy Walkies - Báo cáo dắt chó</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root { --brand:#2e7d5b; --bg:#f6f7f4; --card:#fff; --text:#1d2420; --muted:#6b736e; --line:#dfe3dc; --soft:#e7f4ec; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--brand); color:#fff; padding:20px 16px 22px; text-align:center; }
+  header .brand { font-size:14px; letter-spacing:.08em; text-transform:uppercase; opacity:.9; }
+  header h1 { font-size:24px; margin:6px 0 0; }
+  header .sub { font-size:14px; opacity:.9; margin-top:4px; }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  .summary { display:flex; gap:10px; margin-bottom:16px; }
+  .summary div { flex:1; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px; text-align:center; }
+  .summary b { display:block; font-size:22px; color:var(--brand); }
+  .summary span { font-size:13px; color:var(--muted); }
+  .walk { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px; }
+  .when { font-weight:700; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
+  .chip { background:var(--soft); color:var(--brand); border-radius:999px; padding:2px 10px; font-size:13px; font-weight:600; }
+  .note { margin:10px 0 0; white-space:pre-wrap; word-break:break-word; }
+  .photos { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px; }
+  .photos img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:#e9ece7; display:block; cursor:pointer; }
+  .routeBtn { margin-top:10px; background:none; border:1px solid var(--line); border-radius:8px; padding:6px 12px; font:inherit; font-size:14px; color:var(--brand); cursor:pointer; }
+  .route { width:100%; border-radius:10px; margin-top:8px; display:block; }
+  .more { width:100%; padding:12px; font:inherit; font-weight:700; border:1px solid var(--brand); color:var(--brand); background:#fff; border-radius:10px; cursor:pointer; }
+  .state { text-align:center; color:var(--muted); padding:40px 16px; }
+  footer { text-align:center; color:var(--muted); font-size:13px; padding:8px 16px 28px; }
+  #lb { position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:10; }
+  #lb.on { display:flex; }
+  #lb img { max-width:100%; max-height:100%; object-fit:contain; }
+  #lb button { position:absolute; background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:50%; width:44px; height:44px; font-size:22px; cursor:pointer; }
+  #lbClose { top:14px; right:14px; }
+  #lbPrev { left:10px; top:50%; }
+  #lbNext { right:10px; top:50%; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Happy Walkies</div>
+  <h1 id="title">Báo cáo dắt chó</h1>
+  <div class="sub" id="sub"></div>
+</header>
+<main>
+  <div id="state" class="state">Đang tải báo cáo...</div>
+  <div id="summary" class="summary hidden"></div>
+  <div id="list"></div>
+  <button id="more" class="more hidden">Xem thêm</button>
+</main>
+<footer>Happy Walkies · Dắt chó với tình yêu thương</footer>
+
+<div id="lb">
+  <button id="lbClose" aria-label="Đóng">×</button>
+  <button id="lbPrev" aria-label="Ảnh trước">‹</button>
+  <img id="lbImg" alt="">
+  <button id="lbNext" aria-label="Ảnh sau">›</button>
+</div>
+
+<script>
+  var API = 'https://script.google.com/macros/s/AKfycbxLQ_VTlsAbc3rsxsHRvL3SA1-NhaiWJRDyd2CKDNWRLjA8aO1aCgl8NzIYpO8YAiwxKA/exec';
+  var PAGE = 10;
+  var DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  var walks = [], shown = 0, lbPhotos = [], lbIndex = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function imgUrl(id, w) { return 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(id) + '=w' + w; }
+  function fallbackUrl(id, w) { return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + w; }
+  function loadImg(img, id, w) {
+    img.src = imgUrl(id, w);
+    img.onerror = function () { img.onerror = null; img.src = fallbackUrl(id, w); };
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function whenLabel(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(iso);
+    if (!m) return iso;
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return DAYS[d.getDay()] + ', ' + pad(+m[3]) + '/' + pad(+m[2]) + '/' + m[1] + ' · ' + m[4] + ':' + m[5];
+  }
+  function num(n) { return String(Math.round(Number(n) * 100) / 100); }
+
+  function showError(text) {
+    $('state').textContent = text;
+    $('state').classList.remove('hidden');
+  }
+
+  function load() {
+    var token = new URLSearchParams(location.search).get('c');
+    if (!token) return showError('Link chưa đầy đủ. Vui lòng mở lại link Happy Walkies đã gửi cho bạn.');
+    fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: 'clientReport', args: [token] })
+    }).then(function (r) { return r.json(); }, function () {
+      throw new Error('Không kết nối được, vui lòng thử lại sau.');
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.error);
+      render(res.data);
+    }).catch(function (e) {
+      showError(e.message === 'Link không hợp lệ.'
+        ? 'Link không hợp lệ. Vui lòng liên hệ Happy Walkies để nhận link mới.' : e.message);
+    });
+  }
+
+  function render(data) {
+    document.title = 'Happy Walkies - ' + data.title;
+    $('title').textContent = data.title;
+    $('sub').textContent = 'Báo cáo các buổi dắt gần đây';
+    walks = data.walks;
+    if (!walks.length) return showError('Chưa có báo cáo nào. Khi có buổi dắt mới, báo cáo sẽ hiện ở đây.');
+    $('state').classList.add('hidden');
+
+    var km = 0, minutes = 0;
+    walks.forEach(function (w) { km += Number(w.km) || 0; minutes += Number(w.minutes) || 0; });
+    var s = $('summary'); s.classList.remove('hidden');
+    [[walks.length, 'buổi dắt'], [num(km), 'km đã đi'], [Math.round(minutes / 60 * 10) / 10, 'giờ vui chơi']].forEach(function (x) {
+      var d = el('div'); d.appendChild(el('b', null, String(x[0]))); d.appendChild(el('span', null, x[1])); s.appendChild(d);
+    });
+    more();
+  }
+
+  function more() {
+    var list = $('list');
+    walks.slice(shown, shown + PAGE).forEach(function (w) { list.appendChild(card(w)); });
+    shown = Math.min(walks.length, shown + PAGE);
+    $('more').classList.toggle('hidden', shown >= walks.length);
+  }
+  $('more').onclick = more;
+
+  function card(w) {
+    var c = el('div', 'walk');
+    c.appendChild(el('div', 'when', whenLabel(w.when)));
+    var chips = el('div', 'chips');
+    if (w.type) chips.appendChild(el('span', 'chip', "Gói " + w.type + "'"));
+    if (w.minutes) chips.appendChild(el('span', 'chip', w.minutes + ' phút'));
+    if (w.km) chips.appendChild(el('span', 'chip', num(w.km) + ' km'));
+    c.appendChild(chips);
+    if (w.note) c.appendChild(el('p', 'note', w.note));
+    if (w.photos && w.photos.length) {
+      var g = el('div', 'photos');
+      w.photos.forEach(function (id, i) {
+        var img = el('img'); img.alt = 'Ảnh buổi dắt'; img.loading = 'lazy';
+        loadImg(img, id, 400);
+        img.onclick = function () { openLb(w.photos, i); };
+        g.appendChild(img);
+      });
+      c.appendChild(g);
+    }
+    if (w.route) {
+      var holder = el('div');
+      var btn = el('button', 'routeBtn', 'Xem lộ trình');
+      btn.onclick = function () {
+        if (holder.firstChild) { holder.innerHTML = ''; btn.textContent = 'Xem lộ trình'; return; }
+        var img = el('img', 'route'); img.alt = 'Lộ trình buổi dắt'; loadImg(img, w.route, 800);
+        holder.appendChild(img); btn.textContent = 'Ẩn lộ trình';
+      };
+      c.appendChild(btn); c.appendChild(holder);
+    }
+    return c;
+  }
+
+  function openLb(photos, i) { lbPhotos = photos; lbIndex = i; showLb(); $('lb').classList.add('on'); }
+  function showLb() {
+    loadImg($('lbImg'), lbPhotos[lbIndex], 1600);
+    $('lbPrev').classList.toggle('hidden', lbPhotos.length < 2);
+    $('lbNext').classList.toggle('hidden', lbPhotos.length < 2);
+  }
+  $('lbClose').onclick = function () { $('lb').classList.remove('on'); };
+  $('lbPrev').onclick = function (e) { e.stopPropagation(); lbIndex = (lbIndex + lbPhotos.length - 1) % lbPhotos.length; showLb(); };
+  $('lbNext').onclick = function (e) { e.stopPropagation(); lbIndex = (lbIndex + 1) % lbPhotos.length; showLb(); };
+  $('lb').onclick = function (e) { if (e.target === $('lb') || e.target === $('lbImg')) $('lb').classList.remove('on'); };
+  document.addEventListener('keydown', function (e) {
+    if (!$('lb').classList.contains('on')) return;
+    if (e.key === 'Escape') $('lb').classList.remove('on');
+    if (e.key === 'ArrowLeft') $('lbPrev').click();
+    if (e.key === 'ArrowRight') $('lbNext').click();
+  });
+
+  load();
+</script>
+</body>
+</html>
