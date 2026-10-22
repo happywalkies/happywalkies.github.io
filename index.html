@@ -36,6 +36,7 @@
   .status { font-size:13px; margin-top:6px; color:var(--muted); }
   .status.ok { color:var(--brand); }
   .status.err { color:var(--err); }
+  .status button { margin-left:8px; background:none; border:1px solid var(--line); border-radius:6px; padding:2px 8px; font:inherit; font-size:13px; color:var(--muted); }
   .msg { padding:10px 12px; border-radius:8px; margin-top:12px; display:none; }
   .msg.err { display:block; background:#fdecea; color:var(--err); }
   .msg.ok { display:block; background:#e7f4ec; color:var(--brand); }
@@ -95,6 +96,10 @@
       <input id="dogInput" type="file" accept="image/*" multiple>
       <div id="dogThumbs" class="thumbs"></div>
 
+      <label>Video <span class="hint">(không bắt buộc, 1 video, tối đa 30 giây)</span></label>
+      <input id="videoInput" type="file" accept="video/*">
+      <div id="videoStatus" class="status"></div>
+
       <label for="note">Ghi chú</label>
       <textarea id="note" maxlength="1000" placeholder="Đi vệ sinh, ăn uống, hành vi, điều cần lưu ý..."></textarea>
 
@@ -111,10 +116,10 @@
 
 <script>
   var MAX_DOG = 5;
-  // Ảnh chó nhỏ cho nhanh; ảnh Strava giữ nét để đọc chữ
-  var SIZE = { dog: { side: 1280, q: 0.72 }, strava: { side: 1800, q: 0.85 } };
+  // Ảnh chó đủ nét để khách tải về; ảnh Strava giữ nét để đọc chữ
+  var SIZE = { dog: { side: 1600, q: 0.82 }, strava: { side: 1800, q: 0.85 } };
   // Mỗi ảnh: { src, fileId, status: 'up'|'done'|'bad', promise }
-  var state = { pin: null, strava: null, dogs: [], token: null };
+  var state = { pin: null, strava: null, dogs: [], video: null, token: null };
 
   function $(id) { return document.getElementById(id); }
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
@@ -236,7 +241,7 @@
   }
 
   // Tạo sẵn thư mục tạm ngay khi bấm chọn ảnh, trong lúc nhân viên còn đang chọn
-  ['stravaInput', 'dogInput'].forEach(function (id) {
+  ['stravaInput', 'dogInput', 'videoInput'].forEach(function (id) {
     $(id).addEventListener('click', function () { if (state.pin) ensureToken().catch(function () {}); });
   });
 
@@ -261,6 +266,88 @@
       compress(f, SIZE.dog).then(function (src) {
         state.dogs.push(upload('dog', src)); renderThumbs();
       }).catch(function (e) { msg('formMsg', errText(e), 'err'); });
+    });
+  });
+
+  // ---- Video: tải thẳng lên Drive qua phiên do máy chủ tạo, có hiện % ----
+  var VIDEO_MAX_SEC = 31, VIDEO_MAX_MB = 200;
+  function videoStatus(text, kind) {
+    var el = $('videoStatus'); el.innerHTML = '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+    if (!text) return;
+    el.appendChild(document.createTextNode(text));
+    if (state.video) {
+      var b = document.createElement('button'); b.textContent = 'Bỏ video';
+      b.onclick = removeVideo; el.appendChild(b);
+    }
+  }
+  function removeVideo() {
+    var item = state.video;
+    if (!item) return;
+    state.video = null;
+    if (item.xhr && item.status === 'up') item.xhr.abort();
+    removeItem(item);
+    videoStatus('');
+  }
+  function videoDuration(file) {
+    return new Promise(function (resolve) {
+      var v = document.createElement('video'), url = URL.createObjectURL(file);
+      v.preload = 'metadata';
+      v.onloadedmetadata = function () { URL.revokeObjectURL(url); resolve(v.duration || 0); };
+      v.onerror = function () { URL.revokeObjectURL(url); resolve(0); };
+      v.src = url;
+    });
+  }
+  function uploadVideo(file) {
+    var item = { status: 'up', fileId: null }, type = file.type || 'video/mp4';
+    item.promise = ensureToken().then(function (token) {
+      item.token = token;
+      return call('startVideoUpload', state.pin, token, type, file.size, location.origin);
+    }).then(function (url) {
+      return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest(); item.xhr = xhr;
+        xhr.open('PUT', url);
+        xhr.setRequestHeader('Content-Type', type);
+        xhr.upload.onprogress = function (e) {
+          if (e.lengthComputable && state.video === item) {
+            videoStatus('Đang tải video... ' + Math.round(e.loaded / e.total * 100) + '%');
+          }
+        };
+        xhr.onload = function () {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { return resolve(JSON.parse(xhr.responseText).id); } catch (e) {}
+          }
+          reject(new Error('Tải video lỗi (' + xhr.status + ').'));
+        };
+        xhr.onerror = function () { reject(new Error('Mất kết nối khi tải video.')); };
+        xhr.onabort = function () { reject(new Error('Đã bỏ video.')); };
+        xhr.send(file);
+      });
+    }).then(function (id) {
+      item.fileId = id; item.status = 'done';
+      if (item.removed) call('deletePhoto', state.pin, item.token, id);
+      else if (state.video === item) videoStatus('✓ Đã tải video xong.', 'ok');
+      return id;
+    }, function (e) {
+      item.status = 'bad';
+      if (state.video === item) videoStatus(errText(e) + ' Chọn lại hoặc bỏ video.', 'err');
+      throw e;
+    });
+    item.promise.catch(function () {});
+    return item;
+  }
+  $('videoInput').addEventListener('change', function () {
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    if (f.size > VIDEO_MAX_MB * 1048576) return videoStatus('Video quá lớn (tối đa ' + VIDEO_MAX_MB + ' MB).', 'err');
+    videoStatus('Đang kiểm tra video...');
+    videoDuration(f).then(function (sec) {
+      if (sec > VIDEO_MAX_SEC) {
+        return videoStatus('Video dài ' + Math.round(sec) + ' giây, tối đa 30 giây. Cắt ngắn rồi chọn lại nhé.', 'err');
+      }
+      removeVideo();
+      state.video = uploadVideo(f);
+      videoStatus('Đang tải video... 0%');
     });
   });
 
@@ -315,7 +402,8 @@
     [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = false; });
     $('km').value = ''; $('minutes').value = ''; $('note').value = '';
     ['km', 'minutes', 'walkDate'].forEach(function (id) { $(id).classList.remove('auto'); });
-    state.strava = null; state.dogs = []; state.token = null; status(''); renderThumbs();
+    state.strava = null; state.dogs = []; state.video = null; state.token = null;
+    status(''); videoStatus(''); renderThumbs();
   }
   function submitWalk() {
     var data = {
@@ -323,22 +411,24 @@
       km: parseFloat(String($('km').value).replace(',', '.')), minutes: parseInt($('minutes').value, 10),
       note: $('note').value.trim()
     };
-    var items = (state.strava ? [state.strava] : []).concat(state.dogs);
+    var items = (state.strava ? [state.strava] : []).concat(state.dogs, state.video ? [state.video] : []);
     var err = !state.strava ? 'Chưa có ảnh Strava.' : !data.dog ? 'Chưa chọn chó.' :
       !data.walkType ? "Chưa chọn gói walk 30' hay 45'." : !data.walkDate ? 'Chưa nhập thời gian walk.' :
       !(data.km > 0) ? 'Chưa có km.' : !(data.minutes > 0) ? 'Chưa có số phút.' :
       !state.dogs.length ? 'Cần ít nhất 1 ảnh chó.' :
+      state.video && state.video.status === 'bad' ? 'Video tải lỗi. Chọn lại hoặc bấm "Bỏ video".' :
       items.some(function (it) { return it.status === 'bad'; }) ? 'Có ảnh tải lỗi (viền đỏ). Bấm × rồi chọn lại ảnh đó.' : '';
     if (err) return msg('formMsg', err, 'err');
 
     var btn = $('submitBtn');
     btn.disabled = true; msg('formMsg', '');
-    btn.textContent = items.some(function (it) { return it.status === 'up'; }) ? 'Đang chờ ảnh tải xong...' : 'Đang lưu...';
+    btn.textContent = items.some(function (it) { return it.status === 'up'; }) ? 'Đang chờ ảnh/video tải xong...' : 'Đang lưu...';
 
     Promise.all(items.map(function (it) { return it.promise; })).then(function () {
       btn.textContent = 'Đang lưu...';
       data.stravaFileId = state.strava.fileId;
       data.dogFileIds = state.dogs.map(function (it) { return it.fileId; });
+      data.hasVideo = !!state.video;
       return state.token.then(function (token) { return call('submitWalk', state.pin, token, data); });
     }).then(function () {
       resetForm();
