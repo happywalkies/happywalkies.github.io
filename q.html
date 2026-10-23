@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>HW Hàng chờ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HW Hàng chờ">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root { --brand:#2e7d5b; --bg:#f6f7f4; --card:#fff; --text:#1d2420; --muted:#6b736e; --err:#c0392b; --line:#dfe3dc; --soft:#e7f4ec; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--brand); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  header h1 { font-size:18px; margin:0; }
+  header button { background:none; border:1px solid rgba(255,255,255,.6); color:#fff; padding:4px 10px; border-radius:6px; font-size:13px; }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-weight:600; margin:0 0 6px; }
+  input { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  h2 { font-size:15px; margin:20px 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  h2:first-child { margin-top:0; }
+  .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .dog { font-weight:700; font-size:17px; }
+  .meta { color:var(--muted); font-size:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chip { background:var(--soft); color:var(--brand); border-radius:999px; padding:2px 10px; font-size:13px; font-weight:600; }
+  .chip.short { background:#f4cccc; color:var(--err); }
+  .note { margin:8px 0 0; white-space:pre-wrap; word-break:break-word; font-size:15px; }
+  .photosLink { display:inline-block; margin-top:8px; font-size:14px; color:var(--brand); }
+  .warn { margin-top:8px; font-size:13px; color:#9a6700; }
+  .actions { display:flex; gap:8px; margin-top:12px; }
+  .btn { flex:1; padding:12px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--brand); color:#fff; }
+  .btn.alt { flex:0 0 auto; background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  .btn:disabled { opacity:.55; }
+  .full { width:100%; margin-top:12px; }
+  .empty { color:var(--muted); text-align:center; padding:18px 8px; }
+  .msg { padding:10px 12px; border-radius:8px; margin-top:12px; display:none; }
+  .msg.err { display:block; background:#fdecea; color:var(--err); }
+  #toast { position:fixed; left:16px; right:16px; bottom:20px; max-width:520px; margin:0 auto; padding:12px 14px; border-radius:10px; background:#1d2420; color:#fff; font-size:15px; display:none; z-index:5; }
+  #toast.on { display:block; }
+  #toast.err { background:var(--err); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐾 HW Hàng chờ</h1>
+  <div>
+    <button id="reloadBtn" class="hidden">Tải lại</button>
+    <button id="logoutBtn" class="hidden">Thoát</button>
+  </div>
+</header>
+<main>
+  <section id="pinView" class="card hidden">
+    <label for="pin">PIN quản lý</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn full" id="pinBtn">Vào</button>
+    <div id="pinMsg" class="msg"></div>
+  </section>
+
+  <section id="listView" class="hidden">
+    <h2 id="pendingTitle">Chờ duyệt</h2>
+    <div id="pending"></div>
+    <h2>Đã duyệt hôm nay</h2>
+    <div id="today"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+  var API = 'https://script.google.com/macros/s/AKfycbxLQ_VTlsAbc3rsxsHRvL3SA1-NhaiWJRDyd2CKDNWRLjA8aO1aCgl8NzIYpO8YAiwxKA/exec';
+  var mpin = null, data = { pending: [], today: [] };
+
+  function $(id) { return document.getElementById(id); }
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function call(fn) {
+    var args = [].slice.call(arguments, 1);
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, args: args })
+    }).then(function (r) { return r.json(); }, function () {
+      throw new Error('Mất kết nối mạng, vui lòng thử lại.');
+    }).then(function (res) {
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    });
+  }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  var toastTimer;
+  function toast(text, isErr) {
+    var t = $('toast'); t.textContent = text; t.className = 'on' + (isErr ? ' err' : '');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = ''; }, isErr ? 6000 : 3500);
+  }
+  function num(n) { return String(Math.round(Number(n) * 100) / 100).replace('.', ','); }
+
+  // Copy phải chạy ngay trong lúc bấm (Safari không cho copy sau khi chờ mạng)
+  function copyText(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+    if (!ok && navigator.clipboard) { navigator.clipboard.writeText(text).catch(function () {}); ok = true; }
+    return ok;
+  }
+  function openZalo(url) { if (url) window.open(url, '_blank', 'noopener'); }
+
+  // ---- Đăng nhập ----
+  function login(saved) {
+    var pin = saved || $('pin').value.trim();
+    if (!pin) return;
+    $('pinBtn').disabled = true; $('pinMsg').className = 'msg';
+    call('managerQueue', pin).then(function (res) {
+      mpin = pin; store('hw_mpin', pin); data = res;
+      show('pinView', false); show('listView', true); show('reloadBtn', true); show('logoutBtn', true);
+      render();
+    }).catch(function (e) {
+      store('hw_mpin', null);
+      show('pinView', true);
+      if (!saved) { $('pinMsg').textContent = e.message; $('pinMsg').className = 'msg err'; }
+    }).then(function () { $('pinBtn').disabled = false; });
+  }
+  $('pinBtn').onclick = function () { login(); };
+  $('pin').onkeydown = function (e) { if (e.key === 'Enter') login(); };
+  $('logoutBtn').onclick = function () {
+    store('hw_mpin', null); mpin = null; $('pin').value = '';
+    show('listView', false); show('reloadBtn', false); show('logoutBtn', false); show('pinView', true);
+  };
+  $('reloadBtn').onclick = refresh;
+  function refresh() {
+    $('reloadBtn').disabled = true;
+    call('managerQueue', mpin).then(function (res) { data = res; render(); toast('Đã cập nhật'); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { $('reloadBtn').disabled = false; });
+  }
+
+  // ---- Danh sách ----
+  function render() {
+    $('pendingTitle').textContent = 'Chờ duyệt (' + data.pending.length + ')';
+    fill('pending', data.pending, true, 'Không có walk nào chờ duyệt 🎉');
+    fill('today', data.today, false, 'Chưa có walk nào được duyệt hôm nay.');
+  }
+  function fill(id, list, pending, emptyText) {
+    var box = $(id); box.innerHTML = '';
+    if (!list.length) return box.appendChild(el('div', 'card empty', emptyText));
+    list.forEach(function (w) { box.appendChild(card(w, pending)); });
+  }
+  function card(w, pending) {
+    var c = el('div', 'card');
+    var top = el('div', 'top');
+    top.appendChild(el('span', 'dog', w.dog));
+    top.appendChild(el('span', 'meta', w.whenText + ' · ' + w.staff));
+    c.appendChild(top);
+    var chips = el('div', 'chips');
+    if (w.type) chips.appendChild(el('span', 'chip', "Gói " + w.type + "'"));
+    chips.appendChild(el('span', 'chip' + (w.type && Number(w.minutes) < Number(w.type) ? ' short' : ''), w.minutes + ' phút'));
+    chips.appendChild(el('span', 'chip', num(w.km) + ' km'));
+    c.appendChild(chips);
+    if (w.note) c.appendChild(el('p', 'note', w.note));
+    if (w.folderUrl) {
+      var a = el('a', 'photosLink', 'Xem ảnh / video ↗'); a.href = w.folderUrl; a.target = '_blank'; a.rel = 'noopener';
+      c.appendChild(a);
+    }
+    if (!w.hasLink) c.appendChild(el('div', 'warn', 'Bé chưa có link báo cáo (tab Dogs) – tin nhắn sẽ thiếu link.'));
+    else if (!w.zalo) c.appendChild(el('div', 'warn', 'Chưa có "Link group Zalo" ở tab Dogs – chỉ copy tin, tự mở group.'));
+
+    var actions = el('div', 'actions');
+    if (pending) {
+      var send = el('button', 'btn', w.zalo ? 'Duyệt & gửi khách' : 'Duyệt & copy tin');
+      var only = el('button', 'btn alt', 'Chỉ duyệt');
+      send.onclick = function () {
+        var copied = copyText(w.message);
+        openZalo(w.zalo);
+        approve(w, [send, only], copied ? 'Đã duyệt · tin đã copy, dán vào group Zalo' : 'Đã duyệt (không copy được, bấm "Copy tin")');
+      };
+      only.onclick = function () { approve(w, [send, only], 'Đã duyệt, khách xem được trên link báo cáo'); };
+      actions.appendChild(send); actions.appendChild(only);
+    } else {
+      var copy = el('button', 'btn', w.zalo ? 'Copy tin & mở group' : 'Copy tin');
+      copy.onclick = function () {
+        var ok = copyText(w.message);
+        openZalo(w.zalo);
+        toast(ok ? 'Đã copy tin nhắn' : 'Không copy được', !ok);
+      };
+      actions.appendChild(copy);
+    }
+    c.appendChild(actions);
+    return c;
+  }
+  function approve(w, buttons, okText) {
+    buttons.forEach(function (b) { b.disabled = true; });
+    call('approveWalk', mpin, w.row, w.dog, w.when).then(function () {
+      data.pending = data.pending.filter(function (x) { return x !== w; });
+      var today = new Date(), iso = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
+      if (w.when.slice(0, 10) === iso) data.today.unshift(w);
+      render(); toast(okText);
+    }).catch(function (e) {
+      buttons.forEach(function (b) { b.disabled = false; });
+      toast('Chưa duyệt được: ' + e.message, true);
+    });
+  }
+
+  var saved = load('hw_mpin');
+  if (saved) login(saved); else show('pinView', true);
+</script>
+</body>
+</html>
