@@ -48,6 +48,10 @@
   .types span { display:block; text-align:center; padding:12px; border:2px solid var(--line); border-radius:10px; font-weight:700; background:#fff; }
   .types input:checked + span { border-color:var(--brand); background:#e7f4ec; color:var(--brand); }
   .types input:focus-visible + span { outline:2px solid var(--brand); outline-offset:2px; }
+  .homeInfo { margin-top:8px; padding:10px 12px; border-radius:8px; background:#f1f6f2; border:1px solid #cfe5d7; font-size:14px; }
+  .homeInfo div + div { margin-top:6px; }
+  .homeInfo b { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
+  .homeInfo span { white-space:pre-wrap; word-break:break-word; }
   .hidden { display:none; }
 </style>
 </head>
@@ -78,6 +82,7 @@
 
       <label for="dog">Chó / Khách</label>
       <select id="dog"></select>
+      <div id="homeInfo" class="homeInfo hidden"></div>
 
       <label>Gói walk</label>
       <div id="walkTypes" class="types"></div>
@@ -179,8 +184,27 @@
     first.value = '';
     first.textContent = dogs.length ? '— Chọn chó —' : 'Chưa có danh sách chó, liên hệ chủ';
     sel.appendChild(first);
-    dogs.forEach(function (d) { var o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
+    state.dogInfo = {};
+    dogs.forEach(function (d) {
+      if (typeof d === 'string') d = { name: d };
+      state.dogInfo[d.name] = d;
+      var o = document.createElement('option'); o.value = o.textContent = d.name; sel.appendChild(o);
+    });
+    showHomeInfo();
   }
+  // Thông tin đến nhà của bé đang chọn (chủ điền ở tab Dogs)
+  function showHomeInfo() {
+    var box = $('homeInfo'), d = (state.dogInfo || {})[$('dog').value] || {};
+    box.innerHTML = '';
+    [['Địa chỉ', d.address], ['Cách vào nhà', d.access], ['Bé thường ở đâu / lưu ý', d.notes]].forEach(function (x) {
+      if (!x[1]) return;
+      var row = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span');
+      b.textContent = x[0]; s.textContent = x[1];
+      row.appendChild(b); row.appendChild(s); box.appendChild(row);
+    });
+    show('homeInfo', box.childNodes.length > 0);
+  }
+  $('dog').addEventListener('change', showHomeInfo);
   function fillWalkTypes(types) {
     var box = $('walkTypes'); box.innerHTML = '';
     types.forEach(function (t) {
@@ -398,7 +422,7 @@
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }
   function resetForm() {
-    $('dog').value = ''; $('walkDate').value = nowLocal();
+    $('dog').value = ''; showHomeInfo(); $('walkDate').value = nowLocal();
     [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = false; });
     $('km').value = ''; $('minutes').value = ''; $('note').value = '';
     ['km', 'minutes', 'walkDate'].forEach(function (id) { $(id).classList.remove('auto'); });
