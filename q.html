@@ -2,18 +2,24 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<title>HW Hàng chờ</title>
+<title>Happy Walkies - Hàng chờ</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="HW Hàng chờ">
+<meta name="apple-mobile-web-app-title" content="Happy Walkies">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#7BCAF8">
 <style>
-  :root { --brand:#2e7d5b; --bg:#f6f7f4; --card:#fff; --text:#1d2420; --muted:#6b736e; --err:#c0392b; --line:#dfe3dc; --soft:#e7f4ec; }
+  :root { --primary:#7BCAF8; --brand:#233F5B; --bg:#EEF7FC; --card:#fff; --text:#233F5B; --muted:#566878; --line:#C3E3F5; --soft:#C3E3F5; --err:#c0392b; }
   * { box-sizing:border-box; }
-  body { margin:0; font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  header { background:var(--brand); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  header h1 { font-size:18px; margin:0; }
-  header button { background:none; border:1px solid rgba(255,255,255,.6); color:#fff; padding:4px 10px; border-radius:6px; font-size:13px; }
+  body { margin:0; font:16px/1.45 Montserrat,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--primary); color:var(--brand); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  header h1 { margin:0; }
+  .hwName { display:block; font-family:Fredoka,Montserrat,sans-serif; font-weight:600; font-size:24px; line-height:1.15; color:var(--brand); }
+  .hwSub { display:block; font-size:13px; font-weight:500; margin-top:2px; }
+  header button { background:none; border:1px solid var(--brand); color:var(--brand); padding:4px 10px; border-radius:6px; font-size:13px; }
   main { max-width:560px; margin:0 auto; padding:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
   label { display:block; font-weight:600; margin:0 0 6px; }
@@ -30,14 +36,14 @@
   .photosLink { display:inline-block; margin-top:8px; font-size:14px; color:var(--brand); }
   .warn { margin-top:8px; font-size:13px; color:#9a6700; }
   .actions { display:flex; gap:8px; margin-top:12px; }
-  .btn { flex:1; padding:12px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--brand); color:#fff; }
+  .btn { flex:1; padding:12px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--primary); color:var(--brand); }
   .btn.alt { flex:0 0 auto; background:#fff; color:var(--brand); border:1px solid var(--brand); }
   .btn:disabled { opacity:.55; }
   .full { width:100%; margin-top:12px; }
   .empty { color:var(--muted); text-align:center; padding:18px 8px; }
   .msg { padding:10px 12px; border-radius:8px; margin-top:12px; display:none; }
   .msg.err { display:block; background:#fdecea; color:var(--err); }
-  #toast { position:fixed; left:16px; right:16px; bottom:20px; max-width:520px; margin:0 auto; padding:12px 14px; border-radius:10px; background:#1d2420; color:#fff; font-size:15px; display:none; z-index:5; }
+  #toast { position:fixed; left:16px; right:16px; bottom:20px; max-width:520px; margin:0 auto; padding:12px 14px; border-radius:10px; background:var(--brand); color:#fff; font-size:15px; display:none; z-index:5; }
   #toast.on { display:block; }
   #toast.err { background:var(--err); }
   .hidden { display:none !important; }
@@ -45,7 +51,7 @@
 </head>
 <body>
 <header>
-  <h1>🐾 HW Hàng chờ</h1>
+  <h1><span class="hwName">Happy Walkies</span><span class="hwSub">Hàng chờ</span></h1>
   <div>
     <button id="reloadBtn" class="hidden">Tải lại</button>
     <button id="logoutBtn" class="hidden">Thoát</button>
