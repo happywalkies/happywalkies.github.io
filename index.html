@@ -2,28 +2,34 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>HW Walk Report</title>
+<title>Happy Walkies - Walk Report</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="HW Walk">
+<meta name="apple-mobile-web-app-title" content="Happy Walkies">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#7BCAF8">
 <style>
-  :root { --brand:#2e7d5b; --bg:#f6f7f4; --card:#fff; --text:#1d2420; --muted:#6b736e; --err:#c0392b; --line:#dfe3dc; }
+  :root { --primary:#7BCAF8; --brand:#233F5B; --bg:#EEF7FC; --card:#fff; --text:#233F5B; --muted:#566878; --line:#C3E3F5; --soft:#C3E3F5; --err:#c0392b; }
   * { box-sizing:border-box; }
-  body { margin:0; font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  header { background:var(--brand); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
-  header h1 { font-size:18px; margin:0; }
-  header button { background:none; border:1px solid rgba(255,255,255,.6); color:#fff; padding:4px 10px; border-radius:6px; font-size:13px; }
+  body { margin:0; font:16px/1.45 Montserrat,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--primary); color:var(--brand); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; }
+  .hwName { display:block; font-family:Fredoka,Montserrat,sans-serif; font-weight:600; font-size:24px; line-height:1.15; color:var(--brand); }
+  .hwSub { display:block; font-size:13px; font-weight:500; margin-top:2px; }
+  header button { background:none; border:1px solid var(--brand); color:var(--brand); padding:4px 10px; border-radius:6px; font-size:13px; }
   main { max-width:520px; margin:0 auto; padding:16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
   label { display:block; font-weight:600; margin:14px 0 6px; }
   label:first-child { margin-top:0; }
   .hint { font-weight:400; color:var(--muted); font-size:13px; }
   input, select, textarea { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-  input.auto { background:#eef7f1; border-color:#9fd0b4; }
+  input.auto { background:#EAF5FB; border-color:#7BCAF8; }
   textarea { min-height:90px; resize:vertical; }
   .row { display:flex; gap:12px; }
   .row > div { flex:1; }
-  .btn { width:100%; padding:14px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--brand); color:#fff; margin-top:18px; }
+  .btn { width:100%; padding:14px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--primary); color:var(--brand); margin-top:18px; }
   .btn:disabled { opacity:.55; }
   .thumbs { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
   .thumbs div { position:relative; }
@@ -39,16 +45,16 @@
   .status button { margin-left:8px; background:none; border:1px solid var(--line); border-radius:6px; padding:2px 8px; font:inherit; font-size:13px; color:var(--muted); }
   .msg { padding:10px 12px; border-radius:8px; margin-top:12px; display:none; }
   .msg.err { display:block; background:#fdecea; color:var(--err); }
-  .msg.ok { display:block; background:#e7f4ec; color:var(--brand); }
+  .msg.ok { display:block; background:var(--soft); color:var(--brand); }
   table { width:100%; border-collapse:collapse; font-size:14px; }
   td { padding:6px 4px; border-bottom:1px solid var(--line); }
   .types { display:flex; gap:10px; }
   .types label { flex:1; margin:0; }
   .types input { position:absolute; opacity:0; width:1px; height:1px; }
   .types span { display:block; text-align:center; padding:12px; border:2px solid var(--line); border-radius:10px; font-weight:700; background:#fff; }
-  .types input:checked + span { border-color:var(--brand); background:#e7f4ec; color:var(--brand); }
+  .types input:checked + span { border-color:var(--brand); background:var(--soft); color:var(--brand); }
   .types input:focus-visible + span { outline:2px solid var(--brand); outline-offset:2px; }
-  .homeInfo { margin-top:8px; padding:10px 12px; border-radius:8px; background:#f1f6f2; border:1px solid #cfe5d7; font-size:14px; }
+  .homeInfo { margin-top:8px; padding:10px 12px; border-radius:8px; background:#EAF5FB; border:1px solid var(--soft); font-size:14px; }
   .homeInfo div + div { margin-top:6px; }
   .homeInfo b { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
   .homeInfo span { white-space:pre-wrap; word-break:break-word; }
@@ -57,7 +63,7 @@
 </head>
 <body>
 <header>
-  <h1>🐾 HW Walk Report</h1>
+  <h1><span class="hwName">Happy Walkies</span><span class="hwSub">Walk Report</span></h1>
   <button id="logoutBtn" class="hidden" onclick="logout()">Đổi người</button>
 </header>
 <main>
