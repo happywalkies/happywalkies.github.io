@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Happy Walkies Report - Ảnh báo cáo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#7BCAF8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+  :root { --primary:#7BCAF8; --brand:#233F5B; --bg:#EEF7FC; --muted:#566878; --line:#C3E3F5; --soft:#C3E3F5; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 Montserrat,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--brand); }
+  header { background:var(--primary); padding:14px 16px; }
+  header .hwName { font-family:Fredoka,Montserrat,sans-serif; font-weight:600; font-size:22px; }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  #preview { width:100%; border-radius:12px; box-shadow:0 2px 10px rgba(35,63,91,.15); display:none; background:#fff; }
+  .state { text-align:center; color:var(--muted); padding:40px 8px; }
+  .btn { display:block; width:100%; padding:14px; margin-top:12px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--primary); color:var(--brand); cursor:pointer; }
+  .btn.alt { background:#fff; border:1px solid var(--brand); }
+  .btn:disabled { opacity:.5; }
+  .hint { font-size:13px; color:var(--muted); text-align:center; margin-top:8px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header><span class="hwName">Happy Walkies Report</span></header>
+<main>
+  <div id="state" class="state">Đang tạo ảnh báo cáo...</div>
+  <img id="preview" alt="Ảnh báo cáo">
+  <div id="actions" class="hidden">
+    <button id="shareBtn" class="btn">Chia sẻ ảnh (Zalo, Messenger…)</button>
+    <button id="copyBtn" class="btn alt">Chép tin nhắn kèm link</button>
+    <button id="saveBtn" class="btn alt">Lưu ảnh về máy</button>
+    <div class="hint">Gửi ảnh trước, rồi dán tin nhắn để khách bấm link xem chi tiết.</div>
+  </div>
+</main>
+
+<script>
+  var API = 'https://script.google.com/macros/s/AKfycbxLQ_VTlsAbc3rsxsHRvL3SA1-NhaiWJRDyd2CKDNWRLjA8aO1aCgl8NzIYpO8YAiwxKA/exec';
+  var W = 1080, H = 1350; // khổ dọc 4:5, đẹp trên Zalo/Instagram
+  var C = { primary: '#7BCAF8', navy: '#233F5B', bg: '#EEF7FC', soft: '#C3E3F5', muted: '#566878', yellow: '#FBC13A' };
+  var DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  var params = new URLSearchParams(location.search);
+  var token = params.get('c'), wantWhen = params.get('w');
+  var link = 'https://happywalkies.github.io/r.html?c=' + encodeURIComponent(token || '');
+  var pngBlob = null, message = '';
+
+  function $(id) { return document.getElementById(id); }
+  function fail(t) { $('state').textContent = t; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function num(n) { return String(Math.round(Number(n) * 100) / 100).replace('.', ','); }
+
+  function call(fn, args) {
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, args: args }) })
+      .then(function (r) { return r.json(); }, function () { throw new Error('Không kết nối được, thử lại sau.'); })
+      .then(function (res) { if (!res.ok) throw new Error(res.error); return res.data; });
+  }
+  function loadPhoto(id) {
+    return fetch('https://lh3.googleusercontent.com/d/' + encodeURIComponent(id) + '=w1200', { mode: 'cors', credentials: 'omit' })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(function (b) { return createImageBitmap(b); })
+      .catch(function () { return null; });
+  }
+  function fonts() {
+    var vi = 'Happy Walkies ăâêôơưđĐ ạảãáàẹẻẽéè';
+    return Promise.all([
+      document.fonts.load('600 64px Fredoka', vi), document.fonts.load('400 30px Montserrat', vi),
+      document.fonts.load('600 30px Montserrat', vi), document.fonts.load('700 30px Montserrat', vi)
+    ]).catch(function () {});
+  }
+
+  // ---- Vẽ ----
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function cover(ctx, img, x, y, w, h, r) {
+    ctx.save(); rr(ctx, x, y, w, h, r); ctx.clip();
+    if (img) {
+      var s = Math.max(w / img.width, h / img.height), iw = img.width * s, ih = img.height * s;
+      ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+    } else {
+      ctx.fillStyle = C.soft; ctx.fillRect(x, y, w, h);
+    }
+    ctx.restore();
+  }
+  function wrap(ctx, text, maxW, maxLines) {
+    var words = String(text).split(/\s+/), lines = [], cur = '';
+    words.forEach(function (w) {
+      var t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+    });
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      var last = lines[maxLines - 1];
+      while (last && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+      lines[maxLines - 1] = last + '…';
+    }
+    return lines;
+  }
+  function chip(ctx, text, x, y) {
+    ctx.font = '600 30px Montserrat'; var w = ctx.measureText(text).width + 44;
+    ctx.fillStyle = C.soft; rr(ctx, x, y, w, 58, 29); ctx.fill();
+    ctx.fillStyle = C.navy; ctx.textBaseline = 'middle'; ctx.fillText(text, x + 22, y + 30);
+    return x + w + 14;
+  }
+  function qr(ctx, text, x, y, size) {
+    if (typeof qrcode !== 'function') return false;
+    var q = qrcode(0, 'M'); q.addData(text); q.make();
+    var n = q.getModuleCount(), cell = size / (n + 2);
+    ctx.fillStyle = '#fff'; ctx.fillRect(x, y, size, size); ctx.fillStyle = C.navy;
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) {
+      if (q.isDark(r, c)) ctx.fillRect(Math.floor(x + (c + 1) * cell), Math.floor(y + (r + 1) * cell), Math.ceil(cell), Math.ceil(cell));
+    }
+    return true;
+  }
+
+  function draw(title, w, photos) {
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(w.when);
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    var dateText = DAYS[d.getDay()] + ', ' + m[3] + '/' + m[2] + '/' + m[1];
+
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    // Đầu ảnh
+    ctx.fillStyle = C.primary; ctx.fillRect(0, 0, W, 170);
+    ctx.fillStyle = C.navy; ctx.textBaseline = 'alphabetic';
+    ctx.font = '600 62px Fredoka'; ctx.fillText('Happy Walkies Report', 60, 92);
+    ctx.font = '500 30px Montserrat'; ctx.fillText(dateText, 60, 138);
+
+    // Ảnh walk
+    var x = 60, y = 200, pw = 960, ph = 610, g = 14, r = 28;
+    if (photos.length <= 1) cover(ctx, photos[0], x, y, pw, ph, r);
+    else if (photos.length === 2) {
+      cover(ctx, photos[0], x, y, (pw - g) / 2, ph, r); cover(ctx, photos[1], x + (pw + g) / 2, y, (pw - g) / 2, ph, r);
+    } else {
+      var bw = Math.round(pw * 0.64), sw = pw - bw - g, sh = (ph - g) / 2;
+      cover(ctx, photos[0], x, y, bw, ph, r);
+      cover(ctx, photos[1], x + bw + g, y, sw, sh, r);
+      cover(ctx, photos[2], x + bw + g, y + sh + g, sw, sh, r);
+    }
+
+    // Tên + thông tin
+    ctx.fillStyle = C.navy; ctx.textBaseline = 'alphabetic';
+    ctx.font = '600 66px Fredoka'; ctx.fillText(title, 60, 900);
+    var cx = 60, cy = 928;
+    if (w.type) cx = chip(ctx, "Gói " + w.type + "'", cx, cy);
+    if (w.minutes) cx = chip(ctx, w.minutes + ' phút', cx, cy);
+    if (w.km) cx = chip(ctx, num(w.km) + ' km', cx, cy);
+    chip(ctx, m[4] + ':' + m[5], cx, cy);
+
+    var ny = 1040;
+    ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.navy;
+    if (w.note) {
+      ctx.font = '400 30px Montserrat';
+      wrap(ctx, 'Ghi chú: ' + w.note, 960, (w.videos && w.videos.length) ? 2 : 3).forEach(function (line, i) {
+        ctx.fillText(line, 60, ny + i * 42);
+      });
+    }
+    if (w.videos && w.videos.length) {
+      ctx.font = '600 28px Montserrat'; ctx.fillStyle = C.muted;
+      ctx.fillText('🎬 Có video – xem trong link bên dưới', 60, w.note ? ny + 2 * 42 + 4 : ny);
+    }
+
+    // Chân ảnh: link + QR
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 1180, W, H - 1180);
+    ctx.fillStyle = C.primary; ctx.fillRect(0, 1180, W, 6);
+    var hasQr = qr(ctx, link, W - 60 - 140, 1196, 140);
+    var tw = hasQr ? 760 : 960;
+    ctx.fillStyle = C.navy; ctx.font = '700 32px Montserrat'; ctx.fillText('Xem ảnh & video chi tiết', 60, 1240);
+    ctx.font = '400 22px Montserrat'; ctx.fillStyle = C.muted;
+    wrap(ctx, link.replace('https://', ''), tw, 2).forEach(function (line, i) { ctx.fillText(line, 60, 1278 + i * 28); });
+    ctx.font = '600 24px Fredoka'; ctx.fillStyle = C.navy; ctx.fillText('We walk, they wag.', 60, H - 20);
+    return cv;
+  }
+
+  function buildMessage(title, w) {
+    var m = /T(\d{2}):(\d{2})$/.exec(w.when), day = w.when.slice(8, 10) + '/' + w.when.slice(5, 7);
+    var lines = ['🐾 Bé ' + title + ' đã đi dạo lúc ' + m[1] + ':' + m[2] + ' ngày ' + day + ' — ' +
+      (w.minutes || '?') + ' phút, ' + num(w.km || 0) + ' km.'];
+    if (w.note) lines.push('Ghi chú: ' + w.note);
+    lines.push('Xem ảnh & video: ' + link);
+    return lines.join('\n');
+  }
+
+  function start() {
+    if (!token) return fail('Link chưa đầy đủ.');
+    Promise.all([call('clientReport', [token]), fonts()]).then(function (res) {
+      var data = res[0], walks = data.walks || [];
+      if (!walks.length) throw new Error('Chưa có walk nào được duyệt cho bé này.');
+      var w = walks.filter(function (x) { return x.when === wantWhen; })[0] || walks[0];
+      message = buildMessage(data.title, w);
+      return Promise.all((w.photos || []).slice(0, 3).map(loadPhoto)).then(function (imgs) {
+        var cv = draw(data.title, w, imgs);
+        return new Promise(function (ok) { cv.toBlob(ok, 'image/jpeg', 0.9); }); // JPEG nhẹ hơn PNG nhiều khi gửi Zalo
+      });
+    }).then(function (blob) {
+      pngBlob = blob;
+      $('preview').src = URL.createObjectURL(blob); $('preview').style.display = 'block';
+      $('state').classList.add('hidden'); $('actions').classList.remove('hidden');
+    }).catch(function (e) { fail(e.message || 'Không tạo được ảnh.'); });
+  }
+
+  function fileName() { return 'happy-walkies-report.jpg'; }
+  $('shareBtn').onclick = function () {
+    var file = new File([pngBlob], fileName(), { type: 'image/jpeg' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(function () {});
+    } else {
+      $('saveBtn').click();
+    }
+  };
+  $('saveBtn').onclick = function () {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(pngBlob); a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  $('copyBtn').onclick = function () {
+    var done = function () { $('copyBtn').textContent = '✓ Đã chép, dán vào Zalo'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(message).then(done, function () { prompt('Chép tin nhắn:', message); });
+    } else {
+      prompt('Chép tin nhắn:', message);
+    }
+  };
+  start();
+</script>
+</body>
+</html>
