@@ -92,6 +92,7 @@
   .adjRow { display:flex; gap:8px; margin-top:10px; }
   .adjRow input { font-size:14px; padding:8px 10px; }
   .adjRow input.amt { flex:0 0 120px; }
+  #reqBox select { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--brand); }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -135,6 +136,7 @@
       <div id="today"></div>
     </div>
     <div id="schedView" class="hidden">
+      <div id="reqBox"></div>
       <div class="week">
         <button id="prevWeek" aria-label="Tuần trước">‹</button>
         <b id="weekLabel"></b>
@@ -362,7 +364,48 @@
       $('dayItems').innerHTML = ''; toast(e.message, true);
     }).then(function () { $('reloadBtn').disabled = false; });
   }
+  function renderRequests() {
+    var box = $('reqBox'); box.innerHTML = '';
+    var reqs = sched.requests || [];
+    if (!reqs.length) return;
+    box.appendChild(el('h2', null, 'Khách đặt lịch (' + reqs.length + ')'));
+    reqs.forEach(function (q) {
+      var c = el('div', 'card');
+      var top = el('div', 'top');
+      top.appendChild(el('span', 'dog', q.dog));
+      top.appendChild(el('span', 'meta', 'gửi ' + q.at));
+      c.appendChild(top);
+      c.appendChild(el('div', 'meta', q.title));
+      var chips = el('div', 'chips');
+      [q.day, q.time, "Gói " + q.type + "'"].forEach(function (t) { chips.appendChild(el('span', 'chip', t)); });
+      c.appendChild(chips);
+      if (q.note) c.appendChild(el('p', 'note', q.note));
+      var sel = el('select'); sel.style.marginTop = '10px';
+      fillSelectEl(sel, sched.staff, 'Giao sau / ai cũng được');
+      c.appendChild(sel);
+      var actions = el('div', 'actions');
+      var ok = el('button', 'btn', '✅ Nhận'), no = el('button', 'btn danger', 'Từ chối');
+      function answer(accept) {
+        if (!accept && !confirm('Từ chối yêu cầu của ' + q.dog + '?')) return;
+        ok.disabled = no.disabled = true;
+        call('answerBooking', mpin, q.id, accept, sel.value).then(function () {
+          toast(accept ? 'Đã nhận, lịch đã được thêm' : 'Đã từ chối'); return loadSched();
+        }).catch(function (e) { ok.disabled = no.disabled = false; toast(e.message, true); });
+      }
+      ok.onclick = function () { answer(true); }; no.onclick = function () { answer(false); };
+      actions.appendChild(ok); actions.appendChild(no);
+      c.appendChild(actions);
+      box.appendChild(c);
+    });
+    box.appendChild(el('h2', null, 'Lịch dắt'));
+  }
+  function fillSelectEl(s, items, first) {
+    var o0 = el('option', null, first); o0.value = ''; s.appendChild(o0);
+    items.forEach(function (x) { var o = el('option', null, x); o.value = x; s.appendChild(o); });
+  }
   function renderSched() {
+    renderRequests();
+    $('tabSched').textContent = 'Lịch dắt' + ((sched.requests || []).length ? ' (' + sched.requests.length + ')' : '');
     var box = $('days'); box.innerHTML = '';
     sched.days.forEach(function (d) {
       var b = el('button', (d.date === selDay ? 'on' : '') + (d.date === sched.today ? ' today' : ''));
