@@ -46,6 +46,40 @@
   #toast { position:fixed; left:16px; right:16px; bottom:20px; max-width:520px; margin:0 auto; padding:12px 14px; border-radius:10px; background:var(--brand); color:#fff; font-size:15px; display:none; z-index:5; }
   #toast.on { display:block; }
   #toast.err { background:var(--err); }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:4px; }
+  .tabs button { flex:1; padding:10px; font:inherit; font-weight:700; border:0; border-radius:9px; background:none; color:var(--muted); }
+  .tabs button.on { background:var(--primary); color:var(--brand); }
+  .week { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .week button { flex:none; width:40px; height:40px; font:inherit; font-size:20px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--brand); }
+  .week b { flex:1; text-align:center; }
+  .days { display:flex; gap:4px; margin-bottom:12px; }
+  .days button { flex:1; min-width:0; padding:6px 0; font:inherit; font-size:12px; line-height:1.3; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--brand); }
+  .days button b { display:block; font-size:15px; }
+  .days button.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .days button.today { border-color:var(--primary); border-width:2px; }
+  .days button i { display:block; font-style:normal; font-size:11px; opacity:.75; }
+  .slot { display:flex; gap:12px; align-items:center; cursor:pointer; }
+  .slot .time { font-weight:700; font-size:17px; min-width:52px; }
+  .slot .who { flex:1; min-width:0; }
+  .st { font-size:12px; font-weight:700; border-radius:999px; padding:2px 8px; white-space:nowrap; }
+  .st.todo { background:#f0f3f6; color:var(--muted); }
+  .st.on { background:var(--soft); color:var(--brand); }
+  .st.done { background:#dff3e4; color:#1e7a3b; }
+  .st.late, .st.missed { background:#fdecea; color:var(--err); }
+  .form label { margin-top:12px; }
+  .form label:first-child { margin-top:0; }
+  .form select, .form textarea { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .form textarea { min-height:60px; resize:vertical; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; }
+  .seg button { flex:1; min-width:40px; padding:10px 6px; font:inherit; font-weight:700; border:2px solid var(--line); border-radius:10px; background:#fff; color:var(--brand); }
+  .seg button.on { border-color:var(--brand); background:var(--soft); }
+  #fDays { flex-wrap:nowrap; gap:4px; }
+  #fDays button { min-width:0; padding:10px 0; font-size:14px; }
+  .row2 { display:flex; gap:10px; }
+  .row2 > div { flex:1; min-width:0; }
+  .btn.danger { flex:0 0 auto; background:#fff; color:var(--err); border:1px solid var(--err); }
+  .ruleLine { font-size:14px; padding:8px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .ruleLine:last-child { border-bottom:0; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -66,10 +100,60 @@
   </section>
 
   <section id="listView" class="hidden">
-    <h2 id="pendingTitle">Chờ duyệt</h2>
-    <div id="pending"></div>
-    <h2>Đã duyệt hôm nay</h2>
-    <div id="today"></div>
+    <div class="tabs">
+      <button id="tabQueue" class="on">Hàng chờ</button>
+      <button id="tabSched">Lịch dắt</button>
+    </div>
+    <div id="queueView">
+      <h2 id="pendingTitle">Chờ duyệt</h2>
+      <div id="pending"></div>
+      <h2>Đã duyệt hôm nay</h2>
+      <div id="today"></div>
+    </div>
+    <div id="schedView" class="hidden">
+      <div class="week">
+        <button id="prevWeek" aria-label="Tuần trước">‹</button>
+        <b id="weekLabel"></b>
+        <button id="nextWeek" aria-label="Tuần sau">›</button>
+      </div>
+      <div id="days" class="days"></div>
+      <div id="dayItems"></div>
+      <button class="btn full" id="addBtn">+ Thêm walk</button>
+
+      <div id="formCard" class="card form hidden" style="margin-top:12px">
+        <b id="formTitle">Thêm walk</b>
+        <label for="fDog" style="margin-top:12px">Bé</label>
+        <select id="fDog"></select>
+        <div class="row2">
+          <div><label for="fTime">Giờ</label><input id="fTime" type="time"></div>
+          <div><label>Gói</label><div id="fType" class="seg"></div></div>
+        </div>
+        <label for="fStaff">Nhân viên</label>
+        <select id="fStaff"></select>
+        <label>Lặp lại</label>
+        <div id="fKind" class="seg">
+          <button data-k="once">Một ngày</button>
+          <button data-k="weekly">Hằng tuần</button>
+        </div>
+        <div id="onceBox"><label for="fDate">Ngày</label><input id="fDate" type="date"></div>
+        <div id="weeklyBox">
+          <label>Các thứ</label>
+          <div id="fDays" class="seg"></div>
+          <label for="fPause">Tạm nghỉ đến hết ngày <span class="meta">(khách đi vắng, để trống nếu không)</span></label>
+          <input id="fPause" type="date">
+        </div>
+        <label for="fNote">Ghi chú cho nhân viên</label>
+        <textarea id="fNote" maxlength="300"></textarea>
+        <div class="actions">
+          <button class="btn" id="saveBtn">Lưu</button>
+          <button class="btn danger hidden" id="delBtn">Xóa</button>
+          <button class="btn alt" id="cancelBtn">Hủy</button>
+        </div>
+      </div>
+
+      <h2 style="margin-top:22px">Tất cả lịch</h2>
+      <div id="rules" class="card"></div>
+    </div>
   </section>
 </main>
 <div id="toast"></div>
@@ -141,10 +225,10 @@
   $('pinBtn').onclick = function () { login(); };
   $('pin').onkeydown = function (e) { if (e.key === 'Enter') login(); };
   $('logoutBtn').onclick = function () {
-    store('hw_mpin', null); mpin = null; $('pin').value = '';
+    store('hw_mpin', null); mpin = null; $('pin').value = ''; sched = null;
     show('listView', false); show('reloadBtn', false); show('logoutBtn', false); show('pinView', true);
   };
-  $('reloadBtn').onclick = refresh;
+  $('reloadBtn').onclick = function () { tab === 'sched' ? loadSched(true) : refresh(); };
   function refresh() {
     $('reloadBtn').disabled = true;
     call('managerQueue', mpin).then(function (res) { data = res; render(); toast('Đã cập nhật'); })
@@ -217,6 +301,147 @@
       toast('Chưa duyệt được: ' + e.message, true);
     });
   }
+
+  // ---- Lịch dắt ----
+  var WD = ['', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  var STATE_TEXT = { todo: 'Chưa tới giờ', late: 'Trễ, chưa check in', missed: 'Không check in', on: 'Đang dắt', done: 'Xong' };
+  var tab = 'queue', sched = null, weekStart = null, selDay = null, editing = null, form = {};
+  function iso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function monday(d) { d = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+  function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
+  function ddmm(s) { return s ? s.slice(8, 10) + '/' + s.slice(5, 7) : ''; }
+
+  function setTab(t) {
+    tab = t;
+    $('tabQueue').classList.toggle('on', t === 'queue'); $('tabSched').classList.toggle('on', t === 'sched');
+    show('queueView', t === 'queue'); show('schedView', t === 'sched');
+    document.querySelector('.hwSub').textContent = t === 'queue' ? 'Hàng chờ' : 'Lịch dắt';
+    if (t === 'sched' && !sched) loadSched();
+  }
+  $('tabQueue').onclick = function () { setTab('queue'); };
+  $('tabSched').onclick = function () { setTab('sched'); };
+  $('prevWeek').onclick = function () { weekStart = addDays(weekStart, -7); selDay = iso(weekStart); loadSched(); };
+  $('nextWeek').onclick = function () { weekStart = addDays(weekStart, 7); selDay = iso(weekStart); loadSched(); };
+
+  function loadSched(withToast) {
+    if (!weekStart) { weekStart = monday(new Date()); selDay = iso(new Date()); }
+    $('weekLabel').textContent = ddmm(iso(weekStart)) + ' – ' + ddmm(iso(addDays(weekStart, 6)));
+    $('dayItems').innerHTML = '<div class="card empty">Đang tải...</div>';
+    $('reloadBtn').disabled = true;
+    return call('managerSchedule', mpin, iso(weekStart)).then(function (res) {
+      sched = res; renderSched();
+      if (withToast) toast('Đã cập nhật');
+    }).catch(function (e) {
+      $('dayItems').innerHTML = ''; toast(e.message, true);
+    }).then(function () { $('reloadBtn').disabled = false; });
+  }
+  function renderSched() {
+    var box = $('days'); box.innerHTML = '';
+    sched.days.forEach(function (d) {
+      var b = el('button', (d.date === selDay ? 'on' : '') + (d.date === sched.today ? ' today' : ''));
+      var parts = d.label.split(' ');
+      b.appendChild(document.createTextNode(parts[0]));
+      b.appendChild(el('b', null, parts[1].slice(0, 2)));
+      b.appendChild(el('i', null, d.items.length ? d.items.length + ' walk' : '–'));
+      b.onclick = function () { selDay = d.date; renderSched(); };
+      box.appendChild(b);
+    });
+    var day = sched.days.filter(function (d) { return d.date === selDay; })[0] || sched.days[0];
+    selDay = day.date;
+    var list = $('dayItems'); list.innerHTML = '';
+    if (!day.items.length) list.appendChild(el('div', 'card empty', 'Chưa có walk nào ngày ' + day.label + '.'));
+    day.items.forEach(function (it) {
+      var c = el('div', 'card slot');
+      c.appendChild(el('span', 'time', it.hhmm));
+      var who = el('div', 'who');
+      who.appendChild(el('div', 'dog', it.dog));
+      who.appendChild(el('div', 'meta', (it.staff || 'Chưa giao ai') + ' · ' + it.type + "'" + (it.note ? ' · ' + it.note : '')));
+      c.appendChild(who);
+      var text = STATE_TEXT[it.state] || '';
+      if (it.state === 'on') text = 'Đang dắt từ ' + it.checkIn;
+      if (it.state === 'done') text = it.checkIn + '–' + it.checkOut + (it.late >= 15 ? ' · trễ ' + it.late + "'" : '');
+      c.appendChild(el('span', 'st ' + it.state, text));
+      c.onclick = function () { var r = ruleByRow(it.row); if (r) openForm(r); };
+      list.appendChild(c);
+    });
+    var rules = $('rules'); rules.innerHTML = '';
+    if (!sched.rules.length) rules.appendChild(el('div', 'empty', 'Chưa có lịch nào. Bấm "+ Thêm walk".'));
+    sched.rules.forEach(function (r) {
+      var when = r.once ? 'Ngày ' + ddmm(r.once) : r.days.length === 7 ? 'Hằng ngày' : r.days.map(function (w) { return WD[w]; }).join(' ') || r.dayText;
+      var line = el('div', 'ruleLine');
+      line.appendChild(el('b', null, r.time + ' · ' + r.dog));
+      line.appendChild(document.createTextNode(' — ' + when + ' · ' + (r.staff || 'chưa giao') + ' · ' + r.type + "'" +
+        (r.pause && r.pause >= sched.today ? ' · nghỉ đến ' + ddmm(r.pause) : '')));
+      line.onclick = function () { openForm(r); };
+      rules.appendChild(line);
+    });
+  }
+  function ruleByRow(row) { return sched.rules.filter(function (r) { return r.row === row; })[0]; }
+
+  function fillSelect(id, items, first, value) {
+    var s = $(id); s.innerHTML = '';
+    if (first) { var o0 = el('option', null, first); o0.value = ''; s.appendChild(o0); }
+    items.forEach(function (x) { var o = el('option', null, x); o.value = x; s.appendChild(o); });
+    if (value && items.indexOf(value) < 0) { var ox = el('option', null, value); ox.value = value; s.appendChild(ox); }
+    s.value = value || '';
+  }
+  function segButtons(id, items, label, isOn, onClick) {
+    var box = $(id); box.innerHTML = '';
+    items.forEach(function (x) {
+      var b = el('button', isOn(x) ? 'on' : '', label(x));
+      b.type = 'button'; b.onclick = function () { onClick(x); };
+      box.appendChild(b);
+    });
+  }
+  function renderForm() {
+    segButtons('fType', sched.types, function (t) { return t + "'"; }, function (t) { return form.type === t; },
+      function (t) { form.type = t; renderForm(); });
+    segButtons('fDays', [1, 2, 3, 4, 5, 6, 7], function (w) { return WD[w]; }, function (w) { return form.days.indexOf(w) >= 0; },
+      function (w) { var i = form.days.indexOf(w); i >= 0 ? form.days.splice(i, 1) : form.days.push(w); renderForm(); });
+    [].forEach.call($('fKind').children, function (b) {
+      b.type = 'button'; b.classList.toggle('on', b.getAttribute('data-k') === form.kind);
+      b.onclick = function () { form.kind = b.getAttribute('data-k'); renderForm(); };
+    });
+    show('onceBox', form.kind === 'once'); show('weeklyBox', form.kind === 'weekly');
+  }
+  function openForm(r) {
+    editing = r || null;
+    form = r ? { type: r.type, kind: r.once ? 'once' : 'weekly', days: r.days.slice() }
+      : { type: sched.types[0], kind: 'weekly', days: [] };
+    $('formTitle').textContent = r ? 'Sửa lịch ' + r.dog + ' ' + r.time : 'Thêm walk';
+    fillSelect('fDog', sched.dogs, '— Chọn bé —', r ? r.dog : '');
+    fillSelect('fStaff', sched.staff, 'Ai cũng được', r ? r.staff : '');
+    $('fTime').value = r ? r.time : '';
+    $('fDate').value = r && r.once ? r.once : selDay;
+    $('fPause').value = r ? r.pause : '';
+    $('fNote').value = r ? r.note : '';
+    show('delBtn', !!r);
+    renderForm(); show('formCard', true); show('addBtn', false);
+    $('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function closeForm() { show('formCard', false); show('addBtn', true); editing = null; }
+  $('addBtn').onclick = function () { openForm(null); };
+  $('cancelBtn').onclick = closeForm;
+  $('saveBtn').onclick = function () {
+    var d = { dog: $('fDog').value, staff: $('fStaff').value, time: $('fTime').value, type: form.type, note: $('fNote').value.trim() };
+    if (form.kind === 'once') d.once = $('fDate').value; else { d.days = form.days; d.pause = $('fPause').value; }
+    var err = !d.dog ? 'Chọn bé.' : !d.time ? 'Nhập giờ.' : form.kind === 'once' && !d.once ? 'Chọn ngày.' :
+      form.kind === 'weekly' && !d.days.length ? 'Chọn ít nhất 1 thứ.' : '';
+    if (err) return toast(err, true);
+    var btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'Đang lưu...';
+    call('saveSchedule', mpin, editing ? editing.row : 0, editing ? editing.sig : '', d).then(function () {
+      closeForm(); toast('Đã lưu lịch'); return loadSched();
+    }).catch(function (e) { toast(e.message, true); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Lưu'; });
+  };
+  $('delBtn').onclick = function () {
+    if (!editing || !confirm('Xóa lịch ' + editing.dog + ' ' + editing.time + '? (Các lần check in cũ vẫn giữ)')) return;
+    var btn = $('delBtn'); btn.disabled = true;
+    call('deleteSchedule', mpin, editing.row, editing.sig).then(function () {
+      closeForm(); toast('Đã xóa lịch'); return loadSched();
+    }).catch(function (e) { toast(e.message, true); })
+      .then(function () { btn.disabled = false; });
+  };
 
   var saved = load('hw_mpin');
   if (saved) login(saved); else show('pinView', true);
