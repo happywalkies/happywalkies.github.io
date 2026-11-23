@@ -80,6 +80,18 @@
   .btn.danger { flex:0 0 auto; background:#fff; color:var(--err); border:1px solid var(--err); }
   .ruleLine { font-size:14px; padding:8px 0; border-bottom:1px solid var(--line); cursor:pointer; }
   .ruleLine:last-child { border-bottom:0; }
+  .totals { display:flex; gap:8px; margin-bottom:12px; }
+  .totals div { flex:1; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; text-align:center; font-size:12px; color:var(--muted); }
+  .totals b { display:block; font-size:16px; color:var(--brand); }
+  .money { font-weight:700; font-size:17px; }
+  .st.paid { background:#dff3e4; color:#1e7a3b; }
+  .st.unpaid { background:#fff4d6; color:#8a5a00; }
+  .st.none { background:#f0f3f6; color:var(--muted); }
+  .actions.wrap { flex-wrap:wrap; }
+  .actions.wrap .btn { flex:1 1 40%; padding:10px; font-size:14px; }
+  .adjRow { display:flex; gap:8px; margin-top:10px; }
+  .adjRow input { font-size:14px; padding:8px 10px; }
+  .adjRow input.amt { flex:0 0 120px; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -103,6 +115,18 @@
     <div class="tabs">
       <button id="tabQueue" class="on">Hàng chờ</button>
       <button id="tabSched">Lịch dắt</button>
+      <button id="tabBill">Bill</button>
+    </div>
+    <div id="billView" class="hidden">
+      <div class="week">
+        <button id="prevMonth" aria-label="Tháng trước">‹</button>
+        <b id="monthLabel"></b>
+        <button id="nextMonth" aria-label="Tháng sau">›</button>
+      </div>
+      <div id="billWarn" class="card warn hidden"></div>
+      <div id="billTotals" class="totals"></div>
+      <div id="billList"></div>
+      <p class="meta">Bill tính theo các walk đã <b>Duyệt</b> trong tháng × giá gói (giá chung ở tab Cài đặt, giá riêng từng bé ở tab Dogs).</p>
     </div>
     <div id="queueView">
       <h2 id="pendingTitle">Chờ duyệt</h2>
@@ -225,10 +249,10 @@
   $('pinBtn').onclick = function () { login(); };
   $('pin').onkeydown = function (e) { if (e.key === 'Enter') login(); };
   $('logoutBtn').onclick = function () {
-    store('hw_mpin', null); mpin = null; $('pin').value = ''; sched = null;
+    store('hw_mpin', null); mpin = null; $('pin').value = ''; sched = null; bills = null;
     show('listView', false); show('reloadBtn', false); show('logoutBtn', false); show('pinView', true);
   };
-  $('reloadBtn').onclick = function () { tab === 'sched' ? loadSched(true) : refresh(); };
+  $('reloadBtn').onclick = function () { tab === 'sched' ? loadSched(true) : tab === 'bill' ? loadBills(true) : refresh(); };
   function refresh() {
     $('reloadBtn').disabled = true;
     call('managerQueue', mpin).then(function (res) { data = res; render(); toast('Đã cập nhật'); })
@@ -314,10 +338,13 @@
   function setTab(t) {
     tab = t;
     $('tabQueue').classList.toggle('on', t === 'queue'); $('tabSched').classList.toggle('on', t === 'sched');
-    show('queueView', t === 'queue'); show('schedView', t === 'sched');
-    document.querySelector('.hwSub').textContent = t === 'queue' ? 'Hàng chờ' : 'Lịch dắt';
+    $('tabBill').classList.toggle('on', t === 'bill');
+    show('queueView', t === 'queue'); show('schedView', t === 'sched'); show('billView', t === 'bill');
+    document.querySelector('.hwSub').textContent = t === 'queue' ? 'Hàng chờ' : t === 'sched' ? 'Lịch dắt' : 'Bill';
     if (t === 'sched' && !sched) loadSched();
+    if (t === 'bill' && !bills) loadBills();
   }
+  $('tabBill').onclick = function () { setTab('bill'); };
   $('tabQueue').onclick = function () { setTab('queue'); };
   $('tabSched').onclick = function () { setTab('sched'); };
   $('prevWeek').onclick = function () { weekStart = addDays(weekStart, -7); selDay = iso(weekStart); loadSched(); };
@@ -442,6 +469,121 @@
     }).catch(function (e) { toast(e.message, true); })
       .then(function () { btn.disabled = false; });
   };
+
+  // ---- Bill cuối tháng ----
+  var SITE = 'https://happywalkies.github.io/';
+  var bills = null, billMonth = null;
+  function vnd(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' đ'; }
+  function monthText(m) { return m.slice(5, 7) + '/' + m.slice(0, 4); }
+  function shiftMonth(m, n) {
+    var d = new Date(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+  function billLink(token, id) { return SITE + 'b.html?c=' + encodeURIComponent(token) + '&b=' + encodeURIComponent(id); }
+  $('prevMonth').onclick = function () { billMonth = shiftMonth(billMonth, -1); loadBills(); };
+  $('nextMonth').onclick = function () { billMonth = shiftMonth(billMonth, 1); loadBills(); };
+
+  function loadBills(withToast) {
+    if (!billMonth) { // đầu tháng (ngày 1–7) thường làm bill tháng trước
+      var now = new Date(), cur = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+      billMonth = now.getDate() <= 7 ? shiftMonth(cur, -1) : cur;
+    }
+    $('monthLabel').textContent = 'Tháng ' + monthText(billMonth);
+    $('billList').innerHTML = '<div class="card empty">Đang tải...</div>';
+    $('reloadBtn').disabled = true;
+    return call('managerBills', mpin, billMonth).then(function (res) {
+      bills = res; renderBills();
+      if (withToast) toast('Đã cập nhật');
+    }).catch(function (e) { $('billList').innerHTML = ''; toast(e.message, true); })
+      .then(function () { $('reloadBtn').disabled = false; });
+  }
+  function renderBills() {
+    var warn = $('billWarn');
+    warn.textContent = bills.missing.length ? 'Chưa có ' + bills.missing.join(', ') + ' → điền ở tab "Cài đặt" trong Sheet rồi bấm Tải lại.' : '';
+    show('billWarn', bills.missing.length > 0);
+    var total = 0, billed = 0, paid = 0;
+    bills.clients.forEach(function (c) {
+      total += c.amount;
+      if (c.bill) { billed += c.bill.total; if (c.bill.paid) paid += c.bill.total; }
+    });
+    var t = $('billTotals'); t.innerHTML = '';
+    [['Theo walk', vnd(total)], ['Đã tạo bill', vnd(billed)], ['Đã thu', vnd(paid)]].forEach(function (x) {
+      var d = el('div'); d.appendChild(el('b', null, x[1])); d.appendChild(document.createTextNode(x[0])); t.appendChild(d);
+    });
+    var list = $('billList'); list.innerHTML = '';
+    if (!bills.clients.length) list.appendChild(el('div', 'card empty', 'Tháng ' + monthText(bills.month) + ' chưa có walk nào được duyệt.'));
+    bills.clients.forEach(function (c) { list.appendChild(billCard(c)); });
+  }
+  function billCard(c) {
+    var card = el('div', 'card'), b = c.bill;
+    var top = el('div', 'top');
+    top.appendChild(el('span', 'dog', c.title));
+    top.appendChild(el('span', 'st ' + (!b ? 'none' : b.paid ? 'paid' : 'unpaid'),
+      !b ? 'Chưa tạo bill' : b.paid ? 'Đã trả ' + b.paidOn.slice(0, 5) : 'Chưa trả'));
+    card.appendChild(top);
+    var parts = Object.keys(c.byType).map(function (k) { return c.byType[k] + "×" + k + "'"; });
+    card.appendChild(el('div', 'meta', c.count + ' walk' + (parts.length ? ' (' + parts.join(', ') + ')' : '')));
+    card.appendChild(el('div', 'money', b ? vnd(b.total) + (b.adj ? ' (điều chỉnh ' + (b.adj > 0 ? '+' : '') + vnd(b.adj) + ')' : '') : vnd(c.amount)));
+    if (b) card.appendChild(el('div', 'meta', 'Mã bill ' + b.id + ' · tạo ' + b.created));
+    if (c.missing.length) card.appendChild(el('div', 'warn', "Chưa có giá gói " + c.missing.join("', ") + "'."));
+    if (c.outdated) card.appendChild(el('div', 'warn', 'Số walk đã thay đổi từ lúc tạo bill (' + c.count + ' walk, ' + vnd(c.amount) + '). Bấm "Tạo lại" để cập nhật.'));
+
+    var actions = el('div', 'actions wrap');
+    function btn(text, cls, fn) { var x = el('button', 'btn' + (cls ? ' ' + cls : ''), text); x.onclick = function () { fn(x); }; actions.appendChild(x); return x; }
+    var adjRow = null;
+    if (!b || !b.paid) {
+      adjRow = el('div', 'adjRow hidden');
+      var amt = el('input', 'amt'); amt.type = 'number'; amt.inputMode = 'numeric'; amt.placeholder = '± tiền';
+      var note = el('input'); note.placeholder = 'Ghi chú trên bill (không bắt buộc)';
+      if (b) { amt.value = b.adj || ''; note.value = b.note || ''; }
+      adjRow.appendChild(amt); adjRow.appendChild(note);
+    }
+    function makeBill(x) {
+      if (b && !confirm('Tạo lại bill ' + b.id + ' theo số walk hiện tại?')) return;
+      x.disabled = true;
+      call('createBill', mpin, c.token, bills.month, adjRow ? adjRow.firstChild.value : 0, adjRow ? adjRow.lastChild.value : '')
+        .then(function (res) { bills = res; renderBills(); toast('Đã tạo bill'); })
+        .catch(function (e) { x.disabled = false; toast(e.message, true); });
+    }
+    if (!b) {
+      btn('Tạo bill', '', makeBill);
+      btn('± Điều chỉnh', 'alt', function () { adjRow.classList.toggle('hidden'); });
+    } else {
+      var link = billLink(c.token, b.id);
+      if (!b.paid) {
+        btn(c.zalo ? 'Gửi khách (Zalo)' : 'Copy tin gửi khách', '', function () {
+          var text = 'Chào anh/chị, Happy Walkies gửi hóa đơn tháng ' + monthText(b.month) + ' của bé ' + c.title + ': ' +
+            b.count + ' buổi dắt, tổng ' + vnd(b.total) + '.\nXem chi tiết & mã QR chuyển khoản: ' + link +
+            '\nNội dung chuyển khoản: ' + b.id + '. Cảm ơn anh/chị!';
+          var ok = copyText(text); openZalo(c.zalo);
+          toast(ok ? 'Đã copy tin nhắn, dán vào group Zalo' : 'Không copy được', !ok);
+        });
+        btn('✓ Đã nhận tiền', 'alt', function (x) { setPaid(b, true, x); });
+      }
+      btn('Xem bill', 'alt', function () { window.open(link, '_blank', 'noopener'); });
+      if (!b.paid) {
+        btn('Tạo lại', 'alt', makeBill);
+        btn('± Điều chỉnh', 'alt', function () { adjRow.classList.toggle('hidden'); });
+        btn('Xóa', 'danger', function (x) {
+          if (!confirm('Xóa bill ' + b.id + '?')) return;
+          x.disabled = true;
+          call('deleteBill', mpin, b.id).then(function (res) { bills = res; renderBills(); toast('Đã xóa bill'); })
+            .catch(function (e) { x.disabled = false; toast(e.message, true); });
+        });
+      } else {
+        btn('Bỏ đánh dấu đã trả', 'alt', function (x) { setPaid(b, false, x); });
+      }
+    }
+    card.appendChild(actions);
+    if (adjRow) card.appendChild(adjRow);
+    return card;
+  }
+  function setPaid(b, paid, x) {
+    if (paid && !confirm('Xác nhận đã nhận ' + vnd(b.total) + ' cho bill ' + b.id + '?')) return;
+    x.disabled = true;
+    call('setBillPaid', mpin, b.id, paid).then(function (res) { bills = res; renderBills(); toast(paid ? 'Đã đánh dấu đã trả' : 'Đã bỏ đánh dấu'); })
+      .catch(function (e) { x.disabled = false; toast(e.message, true); });
+  }
 
   var saved = load('hw_mpin');
   if (saved) login(saved); else show('pinView', true);
