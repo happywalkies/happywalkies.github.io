@@ -48,6 +48,15 @@
   #lbNext { right:10px; top:50%; }
   #lb #lbSave { bottom:22px; left:50%; transform:translateX(-50%); width:auto; height:auto; border-radius:999px; padding:10px 20px; font:inherit; font-size:15px; font-weight:700; background:#fff; color:var(--text); }
   #lbHint { position:absolute; bottom:4px; left:0; right:0; text-align:center; color:rgba(255,255,255,.7); font-size:12px; }
+  .bills { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px 14px; margin-bottom:16px; }
+  .bills h2 { font-size:14px; margin:8px 0 2px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .billRow { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); color:var(--brand); text-decoration:none; }
+  .billRow:first-of-type { border-top:0; }
+  .billRow .m { flex:1; font-weight:700; }
+  .billRow .m span { display:block; font-weight:400; font-size:13px; color:var(--muted); }
+  .billRow .amt { font-weight:700; }
+  .billRow .st { font-size:12px; font-weight:700; border-radius:999px; padding:2px 8px; background:#fff4d6; color:#8a5a00; }
+  .billRow .st.paid { background:#dff3e4; color:#1e7a3b; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -58,6 +67,7 @@
   <div class="sub" id="sub"></div>
 </header>
 <main>
+  <div id="bills" class="bills hidden"><h2>Hóa đơn</h2></div>
   <div id="state" class="state">Đang tải báo cáo...</div>
   <div id="summary" class="summary hidden"></div>
   <div id="list"></div>
@@ -129,6 +139,7 @@
     document.title = 'Happy Walkies Report - ' + data.title;
     $('title').textContent = data.title;
     $('sub').textContent = 'Báo cáo các buổi dắt gần đây';
+    renderBills(data.bills || []);
     walks = data.walks;
     if (!walks.length) return showError('Chưa có báo cáo nào. Khi có buổi dắt mới, báo cáo sẽ hiện ở đây.');
     $('state').classList.add('hidden');
@@ -140,6 +151,23 @@
       var d = el('div'); d.appendChild(el('b', null, String(x[0]))); d.appendChild(el('span', null, x[1])); s.appendChild(d);
     });
     more();
+  }
+
+  function vnd(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' đ'; }
+  function renderBills(bills) {
+    if (!bills.length) return;
+    var box = $('bills'), token = new URLSearchParams(location.search).get('c');
+    bills.slice(0, 6).forEach(function (b) {
+      var a = el('a', 'billRow');
+      a.href = 'b.html?c=' + encodeURIComponent(token) + '&b=' + encodeURIComponent(b.id);
+      var m = el('div', 'm', 'Tháng ' + b.month.slice(5, 7) + '/' + b.month.slice(0, 4));
+      m.appendChild(el('span', null, b.count + ' buổi · ' + b.id));
+      a.appendChild(m);
+      a.appendChild(el('span', 'amt', vnd(b.total)));
+      a.appendChild(el('span', 'st' + (b.paid ? ' paid' : ''), b.paid ? 'Đã trả' : 'Chưa trả'));
+      box.appendChild(a);
+    });
+    box.classList.remove('hidden');
   }
 
   function more() {
