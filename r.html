@@ -57,6 +57,32 @@
   .billRow .amt { font-weight:700; }
   .billRow .st { font-size:12px; font-weight:700; border-radius:999px; padding:2px 8px; background:#fff4d6; color:#8a5a00; }
   .billRow .st.paid { background:#dff3e4; color:#1e7a3b; }
+  .book { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px 14px 14px; margin-bottom:16px; }
+  .book h2 { font-size:14px; margin:10px 0 4px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .bRow { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); font-size:15px; }
+  .bRow:first-of-type { border-top:0; }
+  .bRow .w { flex:1; min-width:0; }
+  .bRow .w span { display:block; font-size:13px; color:var(--muted); }
+  .bRow .t { font-weight:700; min-width:76px; }
+  .tag { font-size:12px; font-weight:700; border-radius:999px; padding:2px 8px; white-space:nowrap; background:#fff4d6; color:#8a5a00; }
+  .tag.ok { background:#dff3e4; color:#1e7a3b; }
+  .tag.no { background:#fdecea; color:#c0392b; }
+  .small { background:none; border:1px solid var(--line); border-radius:8px; padding:4px 10px; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; }
+  .bigBtn { width:100%; margin-top:12px; padding:12px; font:inherit; font-weight:700; border:0; border-radius:10px; background:var(--primary); color:var(--brand); cursor:pointer; }
+  .bigBtn:disabled { opacity:.55; }
+  .bForm label { display:block; font-weight:600; margin:12px 0 6px; font-size:14px; }
+  .bForm input, .bForm select, .bForm textarea { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); }
+  .bForm textarea { min-height:60px; resize:vertical; }
+  .seg { display:flex; gap:6px; }
+  .seg button { flex:1; min-width:0; padding:10px 0; font:inherit; font-size:14px; font-weight:700; border:2px solid var(--line); border-radius:10px; background:#fff; color:var(--brand); cursor:pointer; }
+  .seg button.on { border-color:var(--brand); background:var(--soft); }
+  .seg.days { gap:4px; }
+  .row2 { display:flex; gap:10px; }
+  .row2 > div { flex:1; min-width:0; }
+  .bMsg { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:14px; }
+  .bMsg.ok { background:var(--soft); }
+  .bMsg.err { background:#fdecea; color:#c0392b; }
+  .hint2 { font-size:13px; color:var(--muted); margin-top:8px; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -67,6 +93,29 @@
   <div class="sub" id="sub"></div>
 </header>
 <main>
+  <div id="book" class="book hidden">
+    <div id="bUpcoming"></div>
+    <div id="bRequests"></div>
+    <button id="bOpen" class="bigBtn">+ Đặt lịch dắt</button>
+    <div id="bForm" class="bForm hidden">
+      <h2>Đặt lịch dắt</h2>
+      <div id="bDogBox"><label for="bDog">Bé</label><select id="bDog"></select></div>
+      <label>Lặp lại</label>
+      <div id="bKind" class="seg"><button data-k="once">Một buổi</button><button data-k="weekly">Hằng tuần</button></div>
+      <div id="bOnce"><label for="bDate">Ngày</label><input id="bDate" type="date"></div>
+      <div id="bWeekly"><label>Các thứ</label><div id="bDays" class="seg days"></div></div>
+      <div class="row2">
+        <div><label for="bTime">Giờ đón</label><input id="bTime" type="time"></div>
+        <div><label>Gói</label><div id="bType" class="seg"></div></div>
+      </div>
+      <label for="bNote">Ghi chú <span style="font-weight:400;color:var(--muted)">(không bắt buộc)</span></label>
+      <textarea id="bNote" maxlength="300" placeholder="Ví dụ: bé mới tiêm, đi nhẹ nhàng giúp em"></textarea>
+      <button id="bSend" class="bigBtn">Gửi yêu cầu</button>
+      <button id="bCancel" class="small" style="margin-top:8px;width:100%;padding:10px">Đóng</button>
+      <div class="hint2">Happy Walkies sẽ xác nhận sớm. Trạng thái hiện ngay trên trang này.</div>
+    </div>
+    <div id="bMsg" class="bMsg hidden"></div>
+  </div>
   <div id="bills" class="bills hidden"><h2>Hóa đơn</h2></div>
   <div id="state" class="state">Đang tải báo cáo...</div>
   <div id="summary" class="summary hidden"></div>
@@ -140,6 +189,7 @@
     $('title').textContent = data.title;
     $('sub').textContent = 'Báo cáo các buổi dắt gần đây';
     renderBills(data.bills || []);
+    if (data.booking) renderBooking(data.booking);
     walks = data.walks;
     if (!walks.length) return showError('Chưa có báo cáo nào. Khi có buổi dắt mới, báo cáo sẽ hiện ở đây.');
     $('state').classList.add('hidden');
@@ -169,6 +219,98 @@
     });
     box.classList.remove('hidden');
   }
+
+  // ---- Đặt lịch ----
+  var WD = ['', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  var booking = null, bf = { kind: 'once', days: [], type: 0 };
+  function call(fn) {
+    var args = [].slice.call(arguments, 1);
+    return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+      .then(function (r) { return r.json(); }, function () { throw new Error('Không kết nối được, vui lòng thử lại.'); })
+      .then(function (res) { if (!res.ok) throw new Error(res.error); return res.data; });
+  }
+  function token() { return new URLSearchParams(location.search).get('c'); }
+  function bMsg(text, kind) { var m = $('bMsg'); m.textContent = text || ''; m.className = 'bMsg ' + (kind || '') + (text ? '' : ' hidden'); }
+  function renderBooking(b) {
+    booking = b;
+    $('book').classList.remove('hidden');
+    var up = $('bUpcoming'); up.innerHTML = '';
+    up.appendChild(el('h2', null, 'Lịch dắt sắp tới'));
+    if (!b.upcoming.length) up.appendChild(el('div', 'hint2', 'Chưa có buổi nào trong 2 tuần tới.'));
+    b.upcoming.forEach(function (u) {
+      var r = el('div', 'bRow');
+      r.appendChild(el('span', 't', u.label));
+      var w = el('div', 'w', u.time + ' · ' + u.dog); w.appendChild(el('span', null, "Gói " + u.type + "'")); r.appendChild(w);
+      up.appendChild(r);
+    });
+    var rq = $('bRequests'); rq.innerHTML = '';
+    if (b.requests.length) rq.appendChild(el('h2', null, 'Yêu cầu của bạn'));
+    b.requests.forEach(function (q) {
+      var r = el('div', 'bRow');
+      var w = el('div', 'w', q.dog + ' · ' + q.day + ' · ' + q.time);
+      w.appendChild(el('span', null, "Gói " + q.type + "' · gửi " + q.at + (q.note ? ' · ' + q.note : '')));
+      r.appendChild(w);
+      var cls = q.status === 'Đã nhận' ? 'tag ok' : q.status === 'Từ chối' ? 'tag no' : 'tag';
+      r.appendChild(el('span', cls, q.status));
+      if (q.status === 'Chờ duyệt') {
+        var x = el('button', 'small', 'Hủy');
+        x.onclick = function () {
+          if (!confirm('Hủy yêu cầu này?')) return;
+          x.disabled = true;
+          call('cancelBooking', token(), q.id).then(function (nb) { renderBooking(nb); bMsg('Đã hủy yêu cầu.', 'ok'); })
+            .catch(function (e) { x.disabled = false; bMsg(e.message, 'err'); });
+        };
+        r.appendChild(x);
+      }
+      rq.appendChild(r);
+    });
+    // Form
+    var sel = $('bDog'); sel.innerHTML = '';
+    b.dogs.forEach(function (d) { var o = el('option', null, d); o.value = d; sel.appendChild(o); });
+    $('bDogBox').classList.toggle('hidden', b.dogs.length < 2);
+    $('bDate').min = b.today;
+    if (!bf.type) bf.type = b.types[0];
+    renderBForm();
+  }
+  function seg(id, items, label, isOn, onClick) {
+    var box = $(id); box.innerHTML = '';
+    items.forEach(function (x) {
+      var btn = el('button', isOn(x) ? 'on' : '', label(x)); btn.type = 'button';
+      btn.onclick = function () { onClick(x); renderBForm(); };
+      box.appendChild(btn);
+    });
+  }
+  function renderBForm() {
+    seg('bType', booking.types, function (t) { return t + "'"; }, function (t) { return bf.type === t; }, function (t) { bf.type = t; });
+    seg('bDays', [1, 2, 3, 4, 5, 6, 7], function (w) { return WD[w]; }, function (w) { return bf.days.indexOf(w) >= 0; },
+      function (w) { var i = bf.days.indexOf(w); i >= 0 ? bf.days.splice(i, 1) : bf.days.push(w); });
+    [].forEach.call($('bKind').children, function (btn) {
+      btn.type = 'button'; btn.classList.toggle('on', btn.getAttribute('data-k') === bf.kind);
+      btn.onclick = function () { bf.kind = btn.getAttribute('data-k'); renderBForm(); };
+    });
+    $('bOnce').classList.toggle('hidden', bf.kind !== 'once');
+    $('bWeekly').classList.toggle('hidden', bf.kind !== 'weekly');
+  }
+  $('bOpen').onclick = function () {
+    $('bForm').classList.remove('hidden'); $('bOpen').classList.add('hidden'); bMsg('');
+    if (!$('bDate').value) $('bDate').value = booking.today;
+  };
+  $('bCancel').onclick = function () { $('bForm').classList.add('hidden'); $('bOpen').classList.remove('hidden'); };
+  $('bSend').onclick = function () {
+    var d = { dog: $('bDog').value, time: $('bTime').value, type: bf.type, note: $('bNote').value.trim() };
+    if (bf.kind === 'once') d.once = $('bDate').value; else d.days = bf.days;
+    var err = !d.dog ? 'Chọn bé.' : bf.kind === 'once' && !d.once ? 'Chọn ngày.' :
+      bf.kind === 'weekly' && !d.days.length ? 'Chọn ít nhất 1 thứ trong tuần.' : !d.time ? 'Chọn giờ đón.' : '';
+    if (err) return bMsg(err, 'err');
+    var btn = $('bSend'); btn.disabled = true; btn.textContent = 'Đang gửi...';
+    call('requestBooking', token(), d).then(function (nb) {
+      $('bNote').value = ''; $('bTime').value = ''; bf.days = [];
+      $('bForm').classList.add('hidden'); $('bOpen').classList.remove('hidden');
+      renderBooking(nb);
+      bMsg('Đã gửi yêu cầu ✓ Happy Walkies sẽ xác nhận sớm.', 'ok');
+    }).catch(function (e) { bMsg(e.message, 'err'); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Gửi yêu cầu'; });
+  };
 
   function more() {
     var list = $('list');
