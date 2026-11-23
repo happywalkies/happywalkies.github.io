@@ -58,6 +58,24 @@
   .homeInfo div + div { margin-top:6px; }
   .homeInfo b { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
   .homeInfo span { white-space:pre-wrap; word-break:break-word; }
+  .day { margin-top:8px; }
+  .dayItem { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .dayItem:last-child { border-bottom:0; }
+  .dayItem .info { flex:1; min-width:0; }
+  .dayItem .t { font-weight:700; }
+  .dayItem .sub { font-size:13px; color:var(--muted); }
+  .dayItem .sub.on { color:var(--brand); font-weight:600; }
+  .dayItem .sub.late { color:var(--err); font-weight:600; }
+  .btn2 { flex:none; padding:10px 14px; font:inherit; font-size:14px; font-weight:700; border:0; border-radius:10px; background:var(--primary); color:var(--brand); }
+  .btn2.out { background:var(--brand); color:#fff; }
+  .btn2.ghost { background:#fff; border:1px solid var(--primary); }
+  .btn2:disabled { opacity:.55; }
+  details { margin-top:10px; }
+  summary { cursor:pointer; color:var(--muted); font-size:14px; font-weight:600; }
+  .adhoc { display:flex; gap:8px; margin-top:8px; }
+  .adhoc select { flex:1; min-width:0; }
+  .adhoc select.type { flex:0 0 82px; }
+  .fromCheck { margin-top:8px; font-size:13px; color:var(--brand); background:var(--soft); border-radius:8px; padding:6px 10px; }
   .hidden { display:none; }
 </style>
 </head>
@@ -79,6 +97,23 @@
   <section id="formView" class="hidden">
     <div class="card">
       <div class="hint">Xin chào <b id="staffName"></b></div>
+      <b style="display:block;margin-top:8px">Lịch dắt hôm nay</b>
+      <div id="dayList" class="day"><div class="hint">Đang tải...</div></div>
+      <details id="adhoc">
+        <summary>+ Check in walk ngoài lịch</summary>
+        <div class="adhoc">
+          <select id="adDog"></select>
+          <select id="adType" class="type"></select>
+          <button class="btn2" id="adBtn" onclick="adhocCheckIn(this)">Check in</button>
+        </div>
+      </details>
+      <div class="hint" style="margin-top:8px">Bấm Check in lúc đón bé, Check out lúc trả bé. Cho phép trang dùng vị trí khi điện thoại hỏi.</div>
+      <div id="dayMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <b style="display:block;margin-bottom:10px">Gửi report</b>
+      <div id="fromCheck" class="fromCheck hidden"></div>
 
       <label>Ảnh chụp màn hình Strava <span class="hint">(km, thời gian, giờ đi sẽ tự điền)</span></label>
       <input id="stravaInput" type="file" accept="image/*">
@@ -170,8 +205,10 @@
       $('staffName').textContent = res.name;
       fillDogs(res.dogs);
       fillWalkTypes(res.walkTypes);
+      fillAdhoc(res.dogs, res.walkTypes);
       resetForm();
       show('pinView', false); show('formView', true); show('logoutBtn', true);
+      if (res.day) renderDay(res.day); else loadDay();
       loadRecent();
     }).catch(function (e) {
       store('hw_pin', null);
@@ -224,6 +261,115 @@
     var el = document.querySelector('input[name="walkType"]:checked');
     return el ? Number(el.value) : 0;
   }
+
+  // ---- Lịch hôm nay + Check in / Check out (kèm vị trí GPS) ----
+  function fillAdhoc(dogs, types) {
+    var d = $('adDog'), t = $('adType');
+    d.innerHTML = '<option value="">— Chọn chó —</option>'; t.innerHTML = '';
+    dogs.forEach(function (x) {
+      var o = document.createElement('option'); o.value = o.textContent = typeof x === 'string' ? x : x.name; d.appendChild(o);
+    });
+    types.forEach(function (x) {
+      var o = document.createElement('option'); o.value = x; o.textContent = x + "'"; t.appendChild(o);
+    });
+  }
+  function nowHHMM() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function minsSince(hhmm) {
+    var p = hhmm.split(':'), d = new Date(), t = new Date(); t.setHours(+p[0], +p[1], 0, 0);
+    return Math.floor((d - t) / 60000);
+  }
+  function renderDay(items) {
+    state.day = items || [];
+    var box = $('dayList'); box.innerHTML = '';
+    if (!state.day.length) { box.innerHTML = '<div class="hint">Hôm nay chưa có lịch nào cho bạn.</div>'; return; }
+    state.day.forEach(function (it) {
+      var row = document.createElement('div'); row.className = 'dayItem';
+      var info = document.createElement('div'); info.className = 'info';
+      var t = document.createElement('div'); t.className = 't';
+      t.textContent = (it.sched ? it.sched + ' · ' : '') + it.dog + ' · ' + it.type + "'";
+      var sub = document.createElement('div'); sub.className = 'sub';
+      var btn = document.createElement('button'); btn.className = 'btn2';
+      if (it.state === 'todo') {
+        var late = it.sched ? minsSince(it.sched) : 0;
+        sub.textContent = late > 0 ? 'Chưa check in · trễ ' + late + ' phút' : 'Chưa check in';
+        if (late >= 15) sub.className += ' late';
+        btn.textContent = 'Check in';
+        btn.onclick = function () { doCheck('in', it, btn); };
+      } else if (it.state === 'on') {
+        sub.textContent = 'Đang dắt từ ' + it.checkIn + ' (' + Math.max(0, minsSince(it.checkIn)) + ' phút)';
+        sub.className += ' on';
+        btn.textContent = 'Check out'; btn.className += ' out';
+        btn.onclick = function () { doCheck('out', it, btn); };
+      } else {
+        sub.textContent = it.checkIn + '–' + it.checkOut + ' · ' + it.minutes + ' phút' + (it.reported ? ' · ✓ đã gửi report' : '');
+        btn.textContent = 'Viết report'; btn.className += ' ghost';
+        btn.onclick = function () { prefillFromCheck(it); };
+        if (it.reported) btn = null;
+      }
+      info.appendChild(t); info.appendChild(sub);
+      if (it.note) { var n = document.createElement('div'); n.className = 'sub'; n.textContent = '📝 ' + it.note; info.appendChild(n); }
+      row.appendChild(info); if (btn) row.appendChild(btn); box.appendChild(row);
+    });
+  }
+  function loadDay() {
+    if (!state.pin) return;
+    call('myDay', state.pin).then(renderDay).catch(function () {
+      if (!state.day) $('dayList').innerHTML = '<div class="hint">Không tải được lịch.</div>';
+    });
+  }
+  function getPos() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(function (p) {
+        resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(p.coords.accuracy) });
+      }, function () { resolve(null); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    });
+  }
+  function doCheck(kind, it, btn) {
+    if (kind === 'out' && !confirm('Check out ' + it.dog + ' bây giờ?')) return;
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Lấy vị trí...'; msg('dayMsg', '');
+    getPos().then(function (pos) {
+      if (!pos && !confirm('Không lấy được vị trí. Vẫn ' + (kind === 'in' ? 'check in' : 'check out') + '?\n\n' +
+          'Để bật: Cài đặt → Quyền riêng tư → Dịch vụ định vị → Safari → Khi dùng app.')) throw null;
+      btn.textContent = 'Đang lưu...';
+      var g = pos || {};
+      return kind === 'in'
+        ? call('checkIn', state.pin, { key: it.key || '', dog: it.dog, type: it.type, lat: g.lat, lng: g.lng, acc: g.acc })
+        : call('checkOut', state.pin, it.id, { lat: g.lat, lng: g.lng, acc: g.acc });
+    }).then(function (items) {
+      renderDay(items);
+      if (kind === 'in') {
+        msg('dayMsg', '✓ Đã check in ' + it.dog + ' lúc ' + nowHHMM() + '. Dắt vui nhé!', 'ok');
+        $('adhoc').open = false;
+      } else {
+        var done = items.filter(function (x) { return x.id === it.id; })[0];
+        if (done) prefillFromCheck(done, true);
+        msg('dayMsg', '✓ Đã check out ' + it.dog + '. Giờ gửi report bên dưới nhé.', 'ok');
+      }
+    }).catch(function (e) {
+      if (e) msg('dayMsg', errText(e), 'err');
+      btn.disabled = false; btn.textContent = label;
+    });
+  }
+  function adhocCheckIn(btn) {
+    var dog = $('adDog').value;
+    if (!dog) return msg('dayMsg', 'Chọn chó trước khi check in.', 'err');
+    doCheck('in', { key: '', dog: dog, type: Number($('adType').value) }, btn);
+  }
+  // Điền sẵn form report từ lần check in/out (ảnh Strava vẫn ghi đè giờ, phút, km nếu đọc được)
+  function prefillFromCheck(it, quiet) {
+    state.checkId = it.id;
+    if (state.dogInfo && state.dogInfo[it.dog]) { $('dog').value = it.dog; showHomeInfo(); }
+    [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = Number(r.value) === it.type; });
+    if (it.checkInIso && !$('walkDate').classList.contains('auto')) $('walkDate').value = it.checkInIso;
+    if (it.minutes && !$('minutes').value) $('minutes').value = it.minutes;
+    $('fromCheck').textContent = 'Report cho walk ' + it.dog + ' · check in ' + it.checkIn + (it.checkOut ? ' – out ' + it.checkOut : '');
+    show('fromCheck', true);
+    if (!quiet) $('fromCheck').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && state.pin) loadDay(); });
+  setInterval(function () { if (state.day && !document.hidden) renderDay(state.day); }, 60000);
 
   // ---- Ảnh: nén rồi tải lên ngay khi chọn ----
   function compress(file, size) {
@@ -432,7 +578,8 @@
     [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = false; });
     $('km').value = ''; $('minutes').value = ''; $('note').value = '';
     ['km', 'minutes', 'walkDate'].forEach(function (id) { $(id).classList.remove('auto'); });
-    state.strava = null; state.dogs = []; state.video = null; state.token = null;
+    state.strava = null; state.dogs = []; state.video = null; state.token = null; state.checkId = null;
+    show('fromCheck', false);
     status(''); videoStatus(''); renderThumbs();
   }
   function submitWalk() {
@@ -459,12 +606,13 @@
       data.stravaFileId = state.strava.fileId;
       data.dogFileIds = state.dogs.map(function (it) { return it.fileId; });
       data.hasVideo = !!state.video;
+      data.checkId = state.checkId || '';
       return state.token.then(function (token) { return call('submitWalk', state.pin, token, data); });
     }).then(function () {
       resetForm();
       msg('formMsg', 'Đã gửi report ✓ Cảm ơn bạn!', 'ok');
       window.scrollTo(0, 0);
-      loadRecent();
+      loadRecent(); loadDay();
     }).catch(function (e) {
       msg('formMsg', 'Gửi không thành công: ' + errText(e) + ' – vui lòng thử lại.', 'err');
     }).then(function () { btn.disabled = false; btn.textContent = 'Gửi report'; });
