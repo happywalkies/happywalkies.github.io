@@ -168,7 +168,7 @@
     ctx.fillStyle = C.navy; ctx.textBaseline = 'alphabetic';
     ctx.font = '600 66px Fredoka'; ctx.fillText(title, 60, 900);
     var cx = 60, cy = 928;
-    if (w.type) cx = chip(ctx, "Gói " + w.type + "'", cx, cy);
+    if (w.type) cx = chip(ctx, 'Gói ' + w.type, cx, cy);
     if (w.minutes) cx = chip(ctx, w.minutes + ' phút', cx, cy);
     if (w.km) cx = chip(ctx, num(w.km) + ' km', cx, cy);
     chip(ctx, m[4] + ':' + m[5], cx, cy);
