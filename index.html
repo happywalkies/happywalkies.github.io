@@ -81,6 +81,15 @@
   .wDay > b { display:block; font-size:14px; padding-bottom:4px; border-bottom:2px solid var(--line); }
   .wItem { padding:7px 0; border-bottom:1px solid var(--line); font-size:15px; }
   .wItem .sub { font-size:13px; color:var(--muted); }
+  .dayItem { flex-wrap:wrap; }
+  .tap { cursor:pointer; }
+  .more { font-size:12px; font-weight:600; color:var(--muted); margin-left:8px; white-space:nowrap; }
+  .wDetail { flex-basis:100%; margin-top:8px; padding:10px 12px; border-radius:8px; background:#EAF5FB; border:1px solid var(--soft); font-size:14px; }
+  .wDetail div + div { margin-top:6px; }
+  .wDetail b { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
+  .wDetail span { white-space:pre-wrap; word-break:break-word; }
+  .wDetail a, .homeInfo a { color:var(--brand); font-weight:700; }
+  .mapLink { display:inline-block; margin-left:8px; }
   .wItem .open { font-size:11px; font-weight:700; color:#8a5a00; background:#fff4d6; border-radius:999px; padding:1px 7px; margin-left:6px; }
   .fromCheck { margin-top:8px; font-size:13px; color:var(--brand); background:var(--soft); border-radius:8px; padding:6px 10px; }
   .hidden { display:none; }
@@ -253,10 +262,64 @@
     [['Địa chỉ', d.address], ['Cách vào nhà', d.access], ['Bé thường ở đâu / lưu ý', d.notes]].forEach(function (x) {
       if (!x[1]) return;
       var row = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span');
-      b.textContent = x[0]; s.textContent = x[1];
+      b.textContent = x[0]; linkify(s, x[1]);
       row.appendChild(b); row.appendChild(s); box.appendChild(row);
     });
     show('homeInfo', box.childNodes.length > 0);
+  }
+  // Chữ có link (http..., www..., maps.app.goo.gl/...) -> link bấm được, mở tab mới
+  var LINK_RE = /((?:https?:\/\/|www\.)[^\s<>"]+|(?:maps\.app\.goo\.gl|goo\.gl\/maps)\/[^\s<>"]+)/gi;
+  function linkify(el, text) {
+    text = String(text || ''); el.textContent = '';
+    var last = 0, m;
+    LINK_RE.lastIndex = 0;
+    while ((m = LINK_RE.exec(text))) {
+      var url = m[0].replace(/[).,;!?]+$/, '');
+      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var a = document.createElement('a');
+      a.href = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = /maps|goo\.gl/i.test(url) ? '📍 Mở bản đồ' : url.length > 40 ? url.slice(0, 37) + '…' : url;
+      a.onclick = function (e) { e.stopPropagation(); };
+      el.appendChild(a);
+      last = m.index + url.length;
+      LINK_RE.lastIndex = last;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+    return el;
+  }
+  // Chi tiết 1 walk (bấm để mở): ghi chú lịch + thông tin đến nhà của bé
+  function walkDetails(dog, note) {
+    var d = (state.dogInfo || {})[dog] || {}, box = document.createElement('div');
+    box.className = 'wDetail hidden';
+    [['Ghi chú', note], ['Địa chỉ', d.address], ['Cách vào nhà', d.access], ['Bé thường ở đâu / lưu ý', d.notes]].forEach(function (x) {
+      if (!x[1]) return;
+      var row = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span');
+      b.textContent = x[0]; linkify(s, x[1]);
+      row.appendChild(b); row.appendChild(s); box.appendChild(row);
+      if (x[0] === 'Địa chỉ' && !LINK_RE.test(x[1])) {
+        var a = document.createElement('a'); a.target = '_blank'; a.rel = 'noopener'; a.className = 'mapLink';
+        a.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(x[1]);
+        a.textContent = '📍 Mở bản đồ'; a.onclick = function (e) { e.stopPropagation(); };
+        row.appendChild(a);
+      }
+      LINK_RE.lastIndex = 0;
+    });
+    return box.childNodes.length ? box : null;
+  }
+  // Gắn chi tiết vào 1 dòng: bấm dòng để mở/đóng
+  function attachDetails(row, target, dog, note) {
+    var det = walkDetails(dog, note);
+    if (!det) return;
+    var hint = document.createElement('span'); hint.className = 'more'; hint.textContent = note ? '📝 ▾' : '▾';
+    target.appendChild(hint);
+    row.appendChild(det);
+    row.classList.add('tap');
+    row.onclick = function (e) {
+      if (e.target.closest('button, a')) return;
+      det.classList.toggle('hidden');
+      hint.textContent = (note ? '📝 ' : '') + (det.classList.contains('hidden') ? '▾' : '▴');
+    };
   }
   $('dog').addEventListener('change', showHomeInfo);
   function fillWalkTypes(types) {
@@ -300,8 +363,7 @@
           var t = document.createElement('div'); t.textContent = it.time + ' · ' + it.dog + ' · ' + it.type;
           if (!it.mine) { var o = document.createElement('span'); o.className = 'open'; o.textContent = 'chưa giao ai'; t.appendChild(o); }
           r.appendChild(t);
-          var extra = [it.address, it.note ? '📝 ' + it.note : ''].filter(String).join(' · ');
-          if (extra) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = extra; r.appendChild(s); }
+          attachDetails(r, t, it.dog, it.note);
           w.appendChild(r);
         });
         box.appendChild(w);
@@ -343,8 +405,9 @@
         if (it.reported) btn = null;
       }
       info.appendChild(t); info.appendChild(sub);
-      if (it.note) { var n = document.createElement('div'); n.className = 'sub'; n.textContent = '📝 ' + it.note; info.appendChild(n); }
-      row.appendChild(info); if (btn) row.appendChild(btn); box.appendChild(row);
+      row.appendChild(info); if (btn) row.appendChild(btn);
+      attachDetails(row, t, it.dog, it.note);
+      box.appendChild(row);
     });
   }
   function loadDay() {
@@ -405,7 +468,9 @@
     if (!quiet) $('fromCheck').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
   document.addEventListener('visibilitychange', function () { if (!document.hidden && state.pin) loadDay(); });
-  setInterval(function () { if (state.day && !document.hidden) renderDay(state.day); }, 60000);
+  setInterval(function () { // cập nhật số phút trễ/đang dắt, trừ khi đang mở chi tiết 1 walk
+    if (state.day && !document.hidden && !document.querySelector('#dayList .wDetail:not(.hidden)')) renderDay(state.day);
+  }, 60000);
 
   // ---- Ảnh: nén rồi tải lên ngay khi chọn ----
   function compress(file, size) {
