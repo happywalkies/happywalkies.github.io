@@ -105,7 +105,7 @@
     var tb = $('lines');
     b.lines.forEach(function (l) {
       var tr = el('tr');
-      [l.d, l.dog, l.type + "'", vnd(l.price)].forEach(function (v, i) { tr.appendChild(el('td', i === 3 ? 'r' : '', v)); });
+      [l.d, l.dog, /^\d+$/.test(String(l.type)) ? l.type + "'" : l.type, vnd(l.price)].forEach(function (v, i) { tr.appendChild(el('td', i === 3 ? 'r' : '', v)); });
       tb.appendChild(tr);
     });
     var sum = $('sum');
