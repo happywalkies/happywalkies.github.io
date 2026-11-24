@@ -74,7 +74,14 @@
   summary { cursor:pointer; color:var(--muted); font-size:14px; font-weight:600; }
   .adhoc { display:flex; gap:8px; margin-top:8px; }
   .adhoc select { flex:1; min-width:0; }
-  .adhoc select.type { flex:0 0 82px; }
+  .adhoc select.type { flex:0 0 104px; }
+  .types { flex-wrap:wrap; }
+  .types label { min-width:30%; }
+  .wDay { margin-top:12px; }
+  .wDay > b { display:block; font-size:14px; padding-bottom:4px; border-bottom:2px solid var(--line); }
+  .wItem { padding:7px 0; border-bottom:1px solid var(--line); font-size:15px; }
+  .wItem .sub { font-size:13px; color:var(--muted); }
+  .wItem .open { font-size:11px; font-weight:700; color:#8a5a00; background:#fff4d6; border-radius:999px; padding:1px 7px; margin-left:6px; }
   .fromCheck { margin-top:8px; font-size:13px; color:var(--brand); background:var(--soft); border-radius:8px; padding:6px 10px; }
   .hidden { display:none; }
 </style>
@@ -106,6 +113,10 @@
           <select id="adType" class="type"></select>
           <button class="btn2" id="adBtn" onclick="adhocCheckIn(this)">Check in</button>
         </div>
+      </details>
+      <details id="weekBox">
+        <summary>📅 Xem lịch 7 ngày tới</summary>
+        <div id="weekList"><div class="hint">Đang tải...</div></div>
       </details>
       <div class="hint" style="margin-top:8px">Bấm Check in lúc đón bé, Check out lúc trả bé. Cho phép trang dùng vị trí khi điện thoại hỏi.</div>
       <div id="dayMsg" class="msg"></div>
@@ -253,13 +264,13 @@
     types.forEach(function (t) {
       var l = document.createElement('label');
       var i = document.createElement('input'); i.type = 'radio'; i.name = 'walkType'; i.value = t;
-      var s = document.createElement('span'); s.textContent = t + "'";
+      var s = document.createElement('span'); s.textContent = t;
       l.appendChild(i); l.appendChild(s); box.appendChild(l);
     });
   }
   function selectedWalkType() {
     var el = document.querySelector('input[name="walkType"]:checked');
-    return el ? Number(el.value) : 0;
+    return el ? el.value : '';
   }
 
   // ---- Lịch hôm nay + Check in / Check out (kèm vị trí GPS) ----
@@ -270,8 +281,33 @@
       var o = document.createElement('option'); o.value = o.textContent = typeof x === 'string' ? x : x.name; d.appendChild(o);
     });
     types.forEach(function (x) {
-      var o = document.createElement('option'); o.value = x; o.textContent = x + "'"; t.appendChild(o);
+      var o = document.createElement('option'); o.value = x; o.textContent = x; t.appendChild(o);
     });
+  }
+  // ---- Lịch 7 ngày tới (tải khi mở) ----
+  $('weekBox').addEventListener('toggle', function () { if (this.open) loadWeek(); });
+  function loadWeek() {
+    call('myWeek', state.pin).then(function (days) {
+      var box = $('weekList'); box.innerHTML = '';
+      var any = false;
+      days.forEach(function (d) {
+        if (!d.items.length) return;
+        any = true;
+        var w = document.createElement('div'); w.className = 'wDay';
+        var h = document.createElement('b'); h.textContent = d.label; w.appendChild(h);
+        d.items.forEach(function (it) {
+          var r = document.createElement('div'); r.className = 'wItem';
+          var t = document.createElement('div'); t.textContent = it.time + ' · ' + it.dog + ' · ' + it.type;
+          if (!it.mine) { var o = document.createElement('span'); o.className = 'open'; o.textContent = 'chưa giao ai'; t.appendChild(o); }
+          r.appendChild(t);
+          var extra = [it.address, it.note ? '📝 ' + it.note : ''].filter(String).join(' · ');
+          if (extra) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = extra; r.appendChild(s); }
+          w.appendChild(r);
+        });
+        box.appendChild(w);
+      });
+      if (!any) box.innerHTML = '<div class="hint" style="margin-top:8px">7 ngày tới chưa có lịch nào cho bạn.</div>';
+    }).catch(function (e) { $('weekList').innerHTML = '<div class="hint">Không tải được lịch: ' + errText(e) + '</div>'; });
   }
   function nowHHMM() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
   function minsSince(hhmm) {
@@ -286,7 +322,7 @@
       var row = document.createElement('div'); row.className = 'dayItem';
       var info = document.createElement('div'); info.className = 'info';
       var t = document.createElement('div'); t.className = 't';
-      t.textContent = (it.sched ? it.sched + ' · ' : '') + it.dog + ' · ' + it.type + "'";
+      t.textContent = (it.sched ? it.sched + ' · ' : '') + it.dog + ' · ' + it.type;
       var sub = document.createElement('div'); sub.className = 'sub';
       var btn = document.createElement('button'); btn.className = 'btn2';
       if (it.state === 'todo') {
@@ -361,7 +397,7 @@
   function prefillFromCheck(it, quiet) {
     state.checkId = it.id;
     if (state.dogInfo && state.dogInfo[it.dog]) { $('dog').value = it.dog; showHomeInfo(); }
-    [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = Number(r.value) === it.type; });
+    [].forEach.call(document.querySelectorAll('input[name="walkType"]'), function (r) { r.checked = r.value === it.type; });
     if (it.checkInIso && !$('walkDate').classList.contains('auto')) $('walkDate').value = it.checkInIso;
     if (it.minutes && !$('minutes').value) $('minutes').value = it.minutes;
     $('fromCheck').textContent = 'Report cho walk ' + it.dog + ' · check in ' + it.checkIn + (it.checkOut ? ' – out ' + it.checkOut : '');
@@ -590,7 +626,7 @@
     };
     var items = (state.strava ? [state.strava] : []).concat(state.dogs, state.video ? [state.video] : []);
     var err = !state.strava ? 'Chưa có ảnh Strava.' : !data.dog ? 'Chưa chọn chó.' :
-      !data.walkType ? "Chưa chọn gói walk 30' hay 45'." : !data.walkDate ? 'Chưa nhập thời gian walk.' :
+      !data.walkType ? 'Chưa chọn gói walk.' : !data.walkDate ? 'Chưa nhập thời gian walk.' :
       !(data.km > 0) ? 'Chưa có km.' : !(data.minutes > 0) ? 'Chưa có số phút.' :
       !state.dogs.length ? 'Cần ít nhất 1 ảnh chó.' :
       state.video && state.video.status === 'bad' ? 'Video tải lỗi. Chọn lại hoặc bấm "Bỏ video".' :
@@ -624,7 +660,7 @@
       if (!rows.length) { t.innerHTML = '<tr><td class="hint">Chưa có walk nào.</td></tr>'; return; }
       rows.forEach(function (r) {
         var tr = document.createElement('tr');
-        [r.date, r.dog, r.walkType ? 'Gói ' + r.walkType + "'" : '', r.km + ' km', r.minutes + "'", r.approved ? '✓ Duyệt' : 'Chờ'].forEach(function (v) {
+        [r.date, r.dog, r.walkType ? 'Gói ' + r.walkType : '', r.km + ' km', r.minutes + "'", r.approved ? '✓ Duyệt' : 'Chờ'].forEach(function (v) {
           var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
         });
         t.appendChild(tr);
