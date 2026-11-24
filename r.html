@@ -240,7 +240,7 @@
     b.upcoming.forEach(function (u) {
       var r = el('div', 'bRow');
       r.appendChild(el('span', 't', u.label));
-      var w = el('div', 'w', u.time + ' · ' + u.dog); w.appendChild(el('span', null, "Gói " + u.type + "'")); r.appendChild(w);
+      var w = el('div', 'w', u.time + ' · ' + u.dog); w.appendChild(el('span', null, 'Gói ' + u.type)); r.appendChild(w);
       up.appendChild(r);
     });
     var rq = $('bRequests'); rq.innerHTML = '';
@@ -248,7 +248,7 @@
     b.requests.forEach(function (q) {
       var r = el('div', 'bRow');
       var w = el('div', 'w', q.dog + ' · ' + q.day + ' · ' + q.time);
-      w.appendChild(el('span', null, "Gói " + q.type + "' · gửi " + q.at + (q.note ? ' · ' + q.note : '')));
+      w.appendChild(el('span', null, 'Gói ' + q.type + ' · gửi ' + q.at + (q.note ? ' · ' + q.note : '')));
       r.appendChild(w);
       var cls = q.status === 'Đã nhận' ? 'tag ok' : q.status === 'Từ chối' ? 'tag no' : 'tag';
       r.appendChild(el('span', cls, q.status));
@@ -281,7 +281,7 @@
     });
   }
   function renderBForm() {
-    seg('bType', booking.types, function (t) { return t + "'"; }, function (t) { return bf.type === t; }, function (t) { bf.type = t; });
+    seg('bType', booking.types, function (t) { return t; }, function (t) { return bf.type === t; }, function (t) { bf.type = t; });
     seg('bDays', [1, 2, 3, 4, 5, 6, 7], function (w) { return WD[w]; }, function (w) { return bf.days.indexOf(w) >= 0; },
       function (w) { var i = bf.days.indexOf(w); i >= 0 ? bf.days.splice(i, 1) : bf.days.push(w); });
     [].forEach.call($('bKind').children, function (btn) {
@@ -324,7 +324,7 @@
     var c = el('div', 'walk');
     c.appendChild(el('div', 'when', whenLabel(w.when)));
     var chips = el('div', 'chips');
-    if (w.type) chips.appendChild(el('span', 'chip', "Gói " + w.type + "'"));
+    if (w.type) chips.appendChild(el('span', 'chip', 'Gói ' + w.type));
     if (w.minutes) chips.appendChild(el('span', 'chip', w.minutes + ' phút'));
     if (w.km) chips.appendChild(el('span', 'chip', num(w.km) + ' km'));
     c.appendChild(chips);
