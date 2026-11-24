@@ -280,8 +280,8 @@
     top.appendChild(el('span', 'meta', w.whenText + ' · ' + w.staff));
     c.appendChild(top);
     var chips = el('div', 'chips');
-    if (w.type) chips.appendChild(el('span', 'chip', "Gói " + w.type + "'"));
-    chips.appendChild(el('span', 'chip' + (w.type && Number(w.minutes) < Number(w.type) ? ' short' : ''), w.minutes + ' phút'));
+    if (w.type) chips.appendChild(el('span', 'chip', 'Gói ' + w.type));
+    chips.appendChild(el('span', 'chip' + (w.typeMinutes && Number(w.minutes) < Number(w.typeMinutes) ? ' short' : ''), w.minutes + ' phút'));
     chips.appendChild(el('span', 'chip', num(w.km) + ' km'));
     c.appendChild(chips);
     if (w.note) c.appendChild(el('p', 'note', w.note));
@@ -377,7 +377,7 @@
       c.appendChild(top);
       c.appendChild(el('div', 'meta', q.title));
       var chips = el('div', 'chips');
-      [q.day, q.time, "Gói " + q.type + "'"].forEach(function (t) { chips.appendChild(el('span', 'chip', t)); });
+      [q.day, q.time, 'Gói ' + q.type].forEach(function (t) { chips.appendChild(el('span', 'chip', t)); });
       c.appendChild(chips);
       if (q.note) c.appendChild(el('p', 'note', q.note));
       var sel = el('select'); sel.style.marginTop = '10px';
@@ -425,7 +425,7 @@
       c.appendChild(el('span', 'time', it.hhmm));
       var who = el('div', 'who');
       who.appendChild(el('div', 'dog', it.dog));
-      who.appendChild(el('div', 'meta', (it.staff || 'Chưa giao ai') + ' · ' + it.type + "'" + (it.note ? ' · ' + it.note : '')));
+      who.appendChild(el('div', 'meta', (it.staff || 'Chưa giao ai') + ' · ' + it.type + (it.note ? ' · ' + it.note : '')));
       c.appendChild(who);
       var text = STATE_TEXT[it.state] || '';
       if (it.state === 'on') text = 'Đang dắt từ ' + it.checkIn;
@@ -440,7 +440,7 @@
       var when = r.once ? 'Ngày ' + ddmm(r.once) : r.days.length === 7 ? 'Hằng ngày' : r.days.map(function (w) { return WD[w]; }).join(' ') || r.dayText;
       var line = el('div', 'ruleLine');
       line.appendChild(el('b', null, r.time + ' · ' + r.dog));
-      line.appendChild(document.createTextNode(' — ' + when + ' · ' + (r.staff || 'chưa giao') + ' · ' + r.type + "'" +
+      line.appendChild(document.createTextNode(' — ' + when + ' · ' + (r.staff || 'chưa giao') + ' · ' + r.type +
         (r.pause && r.pause >= sched.today ? ' · nghỉ đến ' + ddmm(r.pause) : '')));
       line.onclick = function () { openForm(r); };
       rules.appendChild(line);
@@ -464,7 +464,7 @@
     });
   }
   function renderForm() {
-    segButtons('fType', sched.types, function (t) { return t + "'"; }, function (t) { return form.type === t; },
+    segButtons('fType', sched.types, function (t) { return t; }, function (t) { return form.type === t; },
       function (t) { form.type = t; renderForm(); });
     segButtons('fDays', [1, 2, 3, 4, 5, 6, 7], function (w) { return WD[w]; }, function (w) { return form.days.indexOf(w) >= 0; },
       function (w) { var i = form.days.indexOf(w); i >= 0 ? form.days.splice(i, 1) : form.days.push(w); renderForm(); });
@@ -564,11 +564,11 @@
     top.appendChild(el('span', 'st ' + (!b ? 'none' : b.paid ? 'paid' : 'unpaid'),
       !b ? 'Chưa tạo bill' : b.paid ? 'Đã trả ' + b.paidOn.slice(0, 5) : 'Chưa trả'));
     card.appendChild(top);
-    var parts = Object.keys(c.byType).map(function (k) { return c.byType[k] + "×" + k + "'"; });
+    var parts = Object.keys(c.byType).map(function (k) { return c.byType[k] + ' × ' + k; });
     card.appendChild(el('div', 'meta', c.count + ' walk' + (parts.length ? ' (' + parts.join(', ') + ')' : '')));
     card.appendChild(el('div', 'money', b ? vnd(b.total) + (b.adj ? ' (điều chỉnh ' + (b.adj > 0 ? '+' : '') + vnd(b.adj) + ')' : '') : vnd(c.amount)));
     if (b) card.appendChild(el('div', 'meta', 'Mã bill ' + b.id + ' · tạo ' + b.created));
-    if (c.missing.length) card.appendChild(el('div', 'warn', "Chưa có giá gói " + c.missing.join("', ") + "'."));
+    if (c.missing.length) card.appendChild(el('div', 'warn', 'Chưa có giá gói ' + c.missing.join(', ') + ' (tab Gói).'));
     if (c.outdated) card.appendChild(el('div', 'warn', 'Số walk đã thay đổi từ lúc tạo bill (' + c.count + ' walk, ' + vnd(c.amount) + '). Bấm "Tạo lại" để cập nhật.'));
 
     var actions = el('div', 'actions wrap');
